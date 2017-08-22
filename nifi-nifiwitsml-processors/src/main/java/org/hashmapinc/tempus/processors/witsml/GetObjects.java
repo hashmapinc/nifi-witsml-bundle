@@ -26,31 +26,61 @@ import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
+import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.AbstractProcessor;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.ProcessorInitializationContext;
 import org.apache.nifi.processor.Relationship;
+import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-@Tags({"WITSML"})
-@CapabilityDescription("Get Channel Metadata from a WITSML compliant server")
+@Tags({"WITSML", "WitsmlObjects"})
+@CapabilityDescription("Get Objects from Witsml Server. Supported Objects : bharuns, cementjob, drillreport," +
+        " fluidreport, formationMarker, log, mudLog, message, opsReport, rig, risk, sidewallCore, stimJob," +
+        " target, trajectory, tubluar, wbGeometry, well, wellbore")
 @SeeAlso({})
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
 @WritesAttributes({@WritesAttribute(attribute="", description="")})
-public class GetChannelMetadata extends AbstractProcessor {
+public class GetObjects extends AbstractProcessor {
 
     public static final PropertyDescriptor WITSML_SERVICE = new PropertyDescriptor
             .Builder().name("WITSML SERVICE")
             .displayName("WITSML Service")
             .description("The service to be used to connect to the server.")
+            .required(true)
+            .identifiesControllerService(IWitsmlServiceApi.class)
+            .build();
+
+    public static final PropertyDescriptor WELL_ID = new PropertyDescriptor
+            .Builder().name("WELL ID")
+            .displayName("Well ID")
+            .description("Specify the Well Id")
+            .required(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
+    public static final PropertyDescriptor WELLBORE_ID = new PropertyDescriptor
+            .Builder().name("WELLBORE ID")
+            .displayName("Wellbore ID")
+            .description("Specify the Wellbore Id")
+            .required(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
+    public static final PropertyDescriptor OBJECT_LIST = new PropertyDescriptor
+            .Builder().name("OBJECT LIST")
+            .displayName("Objects")
+            .description("Specify the Objects to get from WITSML Server. Can specify multiple comma seperated objects ")
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -73,6 +103,9 @@ public class GetChannelMetadata extends AbstractProcessor {
     protected void init(final ProcessorInitializationContext context) {
         final List<PropertyDescriptor> descriptors = new ArrayList<PropertyDescriptor>();
         descriptors.add(WITSML_SERVICE);
+        descriptors.add(WELL_ID);
+        descriptors.add(WELLBORE_ID);
+        descriptors.add(OBJECT_LIST);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<Relationship>();
@@ -99,10 +132,41 @@ public class GetChannelMetadata extends AbstractProcessor {
 
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
-        FlowFile flowFile = session.get();
-        if ( flowFile == null ) {
+
+        final ComponentLog logger = getLogger();
+        IWitsmlServiceApi witsmlServiceApi;
+
+        try {
+            witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
+        } catch (Exception ex) {
+            logger.error(ex.getMessage());
             return;
         }
-        // TODO implement
+
+        String objectList = context.getProperty(OBJECT_LIST).getValue().replaceAll("[;\\s\t]", "").toUpperCase();
+        String[] objectArray = objectList.split(",");
+
+        for (String object : objectArray) {
+            String data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(WELLBORE_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    object.toUpperCase());
+
+            FlowFile flowFile = session.create();
+            if (flowFile == null) {
+                return;
+            }
+            try {
+                flowFile = session.write(flowFile, new OutputStreamCallback() {
+                    @Override
+                    public void process(OutputStream out) throws IOException {
+                        out.write(data.getBytes());
+                    }
+                });
+                session.transfer(flowFile, SUCCESS);
+            } catch (ProcessException ex) {
+                logger.error("Unable to Process : " + ex);
+                session.transfer(flowFile, FAIULURE);
+            }
+        }
     }
 }

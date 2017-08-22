@@ -22,13 +22,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 
-public class MyProcessorTest {
+public class GetObjectsTest {
 
     private TestRunner testRunner;
 
     @Before
     public void init() {
-        testRunner = TestRunners.newTestRunner(MyProcessor.class);
+        testRunner = TestRunners.newTestRunner(GetObjects.class);
     }
 
     @Test
