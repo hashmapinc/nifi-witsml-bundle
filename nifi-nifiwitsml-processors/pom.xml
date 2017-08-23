@@ -19,7 +19,7 @@
     <parent>
         <groupId>org.hashmapinc.tempus</groupId>
         <artifactId>nifi-witsml-bundle</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0</version>
     </parent>
 
     <artifactId>nifi-nifiwitsml-processors</artifactId>
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>org.hashmapinc.tempus</groupId>
             <artifactId>nifi-witsml-service</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0</version>
         </dependency>
         <!--<dependency>
             <groupId>com.hashmap.tempus</groupId>

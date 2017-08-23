@@ -5,7 +5,7 @@
     <parent>
         <artifactId>nifi-witsml-bundle</artifactId>
         <groupId>org.hashmapinc.tempus</groupId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -16,22 +16,17 @@
         <dependency>
             <groupId>org.hashmapinc.tempus</groupId>
             <artifactId>nifi-witsml-service-api</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0</version>
         </dependency>
         <dependency>
             <groupId>com.hashmapinc.tempus</groupId>
             <artifactId>WitsmlObjects</artifactId>
             <version>1.0</version>
         </dependency>
-        <!--<dependency>
-            <groupId>com.hashmap.tempus</groupId>
-            <artifactId>witsml</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>-->
         <dependency>
             <groupId>com.hashmapinc.tempus</groupId>
             <artifactId>witsml-client</artifactId>
-            <version>1.0</version>
+            <version>1.0.1</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
