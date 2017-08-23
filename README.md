@@ -1,4 +1,4 @@
-# NiFiWITSML
+# nifi-witsml-bundle
 
 The Nifi-Witsml utilizes the WITSML Object Library SDK and the WITSML Client library to allow the Nifi Processor and Controller to connect and query WITSML server. It has support for WITSML 1.3.1.1 and 1.4.1.1 Servers. The implementation have an Controller service to control the connection to WITSML server and two processor, one to get meta-data of the channel and second to get data for particular Object.
 
