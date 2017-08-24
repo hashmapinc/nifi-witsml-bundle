@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.nifi.util.Tuple;
 
 /**
  * Created by Chris on 6/2/17.
@@ -302,6 +303,63 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         trajectoryTracker.initalize(myClient, wellId, wellboreId);
 
         return  trajectoryTracker.ExecuteRequest();
+    }
+
+    @Override
+    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes){
+        QueryTarget target = QueryTarget.parseURI(uri, objectTypes);
+        List<WitsmlObjectId> ids = new ArrayList<>();
+        switch (target.getQueryLevel()){
+            case Server: {
+                ObjWells wells = getWellData();
+                if (wells == null)
+                    return null;
+                for (ObjWell w:wells.getWell()) {
+                    if (w == null)
+                        continue;
+                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well");
+                    ids.add(objId);
+                }
+                break;
+            }
+            case Well: {
+                ObjWellbores wellbores = getWellboreData(target.getWell());
+                if (wellbores == null)
+                    return null;
+                for (ObjWellbore wb:wellbores.getWellbore()){
+                    if (wb == null)
+                        continue;
+                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore");
+                    ids.add(objId);
+                }
+                break;
+            }
+            case Wellbore:
+                break;
+        }
+        return ids;
+    }
+
+    private void queryForTypes(List<String> types){
+
+    }
+
+    private ObjWells getWellData(){
+        try {
+            return myClient.getWellsAsObj();
+        } catch (Exception e) {
+            getLogger().error("Error in getWells: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private ObjWellbores getWellboreData(WitsmlObjectId well){
+        try {
+            return myClient.getWellboresForWellAsObj(well.getId());
+        } catch (Exception e) {
+            getLogger().error("Error in getWellbores: " + e.getMessage());
+            return null;
+        }
     }
 
     public void setMapper() {

@@ -313,6 +313,11 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         return trajectoryTracker.ExecuteRequest();
     }
 
+    @Override
+    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes){
+        return null;
+    }
+
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
         mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));

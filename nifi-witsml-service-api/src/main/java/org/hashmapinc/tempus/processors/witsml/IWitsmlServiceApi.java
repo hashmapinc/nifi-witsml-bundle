@@ -8,6 +8,8 @@ import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.controller.ControllerService;
 import org.apache.nifi.processor.exception.ProcessException;
 
+import java.util.List;
+
 /**
  * Created by Chris on 6/2/17.
  */
@@ -19,4 +21,5 @@ public interface IWitsmlServiceApi extends ControllerService {
     ObjLogs getLogData(String wellId, String wellboreId, String logId);
     ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId);
     ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId);
+    List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes);
 }

@@ -1,0 +1,40 @@
+package org.hashmapinc.tempus.processors.witsml;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class WitsmlObjectId {
+
+    private String name;
+    private String id;
+    private String type;
+
+    public WitsmlObjectId(String name, String id, String type) {
+        this.name = name;
+        this.id = id;
+        this.type = type;
+    }
+
+    public String getName(){
+        return name;
+    }
+
+    public String getId(){
+        return id;
+    }
+
+    public String getType(){
+        return type;
+    }
+
+
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!obj.getClass().equals(this.getClass()))
+            return false;
+
+        WitsmlObjectId source = (WitsmlObjectId)obj;
+        return source.name.equals(this.name);
+    }
+}
