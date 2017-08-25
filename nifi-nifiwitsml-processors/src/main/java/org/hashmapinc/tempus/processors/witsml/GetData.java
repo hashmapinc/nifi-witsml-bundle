@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import org.apache.axis.session.Session;
+import org.apache.axis.utils.JavaUtils;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
@@ -56,6 +57,7 @@ public class GetData extends AbstractProcessor {
             .Builder().name("WELL ID")
             .displayName("Well ID")
             .description("Specify the Well Id")
+            .expressionLanguageSupported(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -64,6 +66,7 @@ public class GetData extends AbstractProcessor {
             .Builder().name("WELLBORE ID")
             .displayName("Wellbore ID")
             .description("Specify the Wellbore Id")
+            .expressionLanguageSupported(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -71,6 +74,7 @@ public class GetData extends AbstractProcessor {
     public static final PropertyDescriptor LOG_ID = new PropertyDescriptor
             .Builder().name("LOG ID")
             .displayName("Log ID")
+            .expressionLanguageSupported(true)
             .description("Specify the Log Id")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -79,6 +83,7 @@ public class GetData extends AbstractProcessor {
             .Builder().name("MUDLOG ID")
             .displayName("MudLog ID")
             .description("Specify the Mudlog Id")
+            .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 

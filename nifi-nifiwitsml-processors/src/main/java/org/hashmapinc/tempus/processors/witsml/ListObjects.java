@@ -36,9 +36,6 @@ import java.util.*;
 @WritesAttributes({@WritesAttribute(attribute="", description="")})
 public class ListObjects extends AbstractProcessor {
 
-    private static long logHashCode = 0;
-    private static long mudLogHashCode = 0;
-    private static long trajectoryHashCode = 0;
     private static ObjectMapper mapper = new ObjectMapper();
 
 
@@ -130,7 +127,7 @@ public class ListObjects extends AbstractProcessor {
 
         FlowFile file = session.get();
 
-        String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().split(",");
+        String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
 
         String uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(file).getValue();
 

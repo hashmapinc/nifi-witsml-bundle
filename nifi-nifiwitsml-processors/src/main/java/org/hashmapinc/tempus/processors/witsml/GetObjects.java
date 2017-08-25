@@ -65,6 +65,7 @@ public class GetObjects extends AbstractProcessor {
             .Builder().name("WELL ID")
             .displayName("Well ID")
             .description("Specify the Well Id")
+            .expressionLanguageSupported(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -73,6 +74,7 @@ public class GetObjects extends AbstractProcessor {
             .Builder().name("WELLBORE ID")
             .displayName("Wellbore ID")
             .description("Specify the Wellbore Id")
+            .expressionLanguageSupported(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -81,6 +83,7 @@ public class GetObjects extends AbstractProcessor {
             .Builder().name("OBJECT LIST")
             .displayName("Objects")
             .description("Specify the Objects to get from WITSML Server. Can specify multiple comma seperated objects ")
+            .expressionLanguageSupported(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();

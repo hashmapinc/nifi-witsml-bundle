@@ -315,8 +315,313 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
 
     @Override
     public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes){
-        return null;
+        QueryTarget target = QueryTarget.parseURI(uri, objectTypes);
+        List<WitsmlObjectId> ids = new ArrayList<>();
+        switch (target.getQueryLevel()){
+            case Server: {
+                ObjWells wells = getWellData();
+                if (wells == null)
+                    return null;
+                for (ObjWell w:wells.getWell()) {
+                    if (w == null)
+                        continue;
+                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well");
+                    ids.add(objId);
+                }
+                break;
+            }
+            case Well: {
+                ObjWellbores wellbores = getWellboreData(target.getWell());
+                if (wellbores == null)
+                    return null;
+                for (ObjWellbore wb:wellbores.getWellbore()){
+                    if (wb == null)
+                        continue;
+                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore");
+                    ids.add(objId);
+                }
+                break;
+            }
+            case Wellbore:
+                ids = queryForTypes(target.getWell().getId(), target.getWellbore().getId(),target.getObjectsToQuery());
+                break;
+        }
+        return ids;
     }
+
+    private ObjWells getWellData(){
+        try {
+            return myClient.getWellsAsObj();
+        } catch (Exception e) {
+            getLogger().error("Error in getWells: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private ObjWellbores getWellboreData(WitsmlObjectId well){
+        try {
+            return myClient.getWellboresForWellAsObj(well.getId());
+        } catch (Exception e) {
+            getLogger().error("Error in getWellbores: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private List<WitsmlObjectId> queryForTypes(String wellId, String wellboreId, List<String> types){
+        List<WitsmlObjectId> ids = new ArrayList<>();
+        for (String type : types) {
+            try {
+                switch (type.toUpperCase()) {
+                    case "ATTACHMENT" :
+                        ObjAttachments attachments = myClient.getAttachmentsAsObj(wellId, wellboreId);
+                        if (attachments == null) {
+                            continue;
+                        }
+                        for (ObjAttachment attachment : attachments.getAttachment()) {
+                            if (attachment == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(attachment.getName(), attachment.getUid(), "attachment"));
+                        }
+                    case "BHARUN":
+                        ObjBhaRuns bhaRuns = myClient.getBhaRunsAsObj(wellId, wellboreId);
+                        if (bhaRuns == null) {
+                            continue;
+                        }
+                        for(ObjBhaRun bhaRun: bhaRuns.getBhaRun()) {
+                            if (bhaRun == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(bhaRun.getName(), bhaRun.getUid(), "bhaRun"));
+                        }
+                        break;
+                    case "CEMENTJOB":
+                        ObjCementJobs cementJobs = myClient.getCementJobsAsObj(wellId, wellboreId);
+                        if (cementJobs == null){
+                            continue;
+                        }
+                        for (ObjCementJob cementJob : cementJobs.getCementJob()) {
+                            if (cementJob == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(cementJob.getName(), cementJob.getUid(), "cementJob"));
+                        }
+                        break;
+                    case "CHANGELOG" :
+                        ObjChangeLogs changeLogs = myClient.getChangeLogsAsObj(wellId, wellboreId);
+                        if (changeLogs == null) {
+                            continue;
+                        }
+                        for (ObjChangeLog changeLog: changeLogs.getChangeLog()) {
+                            if (changeLog == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(changeLog.getNameObject(), changeLog.getUid(), "changeLog"));
+                        }
+                    case "CONVCORE":
+                        ObjConvCores convCores = myClient.getConvCoresAsObj(wellId, wellboreId);
+                        if (convCores == null){
+                            continue;
+                        }
+                        for (ObjConvCore convCore : convCores.getConvCore()) {
+                            if (convCore == null) {
+                                continue;
+                            }
+                            ids.add(new WitsmlObjectId(convCore.getName(), convCore.getUid(), "convCore"));
+                        }
+                        break;
+                    case "DRILLREPORT":
+                        ObjDrillReports drillReports = myClient.getDrillReportsAsObj(wellId,wellboreId);
+                        if (drillReports == null) {
+                            continue;
+                        }
+                        for (ObjDrillReport drillReport : drillReports.getDrillReport()) {
+                            if (drillReport == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(drillReport.getName(), drillReport.getUid(), "drillReport"));
+                        }
+                        break;
+                    case "FLUIDREPORT":
+                        ObjFluidsReports fluidsReports = myClient.getFluidsReportsAsObj(wellId, wellboreId);
+                        if (fluidsReports == null){
+                            continue;
+                        }
+                        for (ObjFluidsReport fluidsReport : fluidsReports.getFluidsReport()) {
+                            if (fluidsReport == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(fluidsReport.getName(), fluidsReport.getUid(), "fluidsReport"));
+                        }
+                        break;
+                    case "FORMATIONMARKER":
+                        ObjFormationMarkers formationMarkers = myClient.getFormationMarkersAsObj(wellId, wellboreId);
+                        if (formationMarkers == null) {
+                            continue;
+                        }
+                        for (ObjFormationMarker formationMarker: formationMarkers.getFormationMarker()) {
+                            if (formationMarker == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(formationMarker.getName(), formationMarker.getUid(), "formationMarker"));
+                        }
+                        break;
+                    case "LOG":
+                        ObjLogs logs = myClient.getLogMetadataAsObj(wellId, wellboreId);
+                        if (logs == null) {
+                            continue;
+                        }
+                        for (ObjLog log : logs.getLog()) {
+                            if (log == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log"));
+                        }
+                        break;
+                    case "MESSAGE":
+                        ObjMessages messages = myClient.getMessagesAsObj(wellId, wellboreId);
+                        if (messages == null) {
+                            continue;
+                        }
+                        for (ObjMessage message : messages.getMessage()) {
+                            if (message == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message"));
+                        }
+                        break;
+                    case "MUDLOG":
+                        ObjMudLogs mudLogs = myClient.getMudLogsAsObj(wellId, wellboreId);
+                        if (mudLogs == null) {
+                            continue;
+                        }
+                        for (ObjMudLog mudLog: mudLogs.getMudLog()) {
+                            if (mudLog == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(mudLog.getName(), mudLog.getUid(), "mudLog"));
+                        }
+                        break;
+                    case "OBJECTGROUP":
+                        ObjObjectGroups objectGroups = myClient.getObjectGroupsAsObj(wellId, wellboreId);
+                        if (objectGroups == null) {
+                            continue;
+                        }
+                        for (ObjObjectGroup objectGroup : objectGroups.getObjectGroup()) {
+                            if (objectGroup == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(objectGroup.getName(), objectGroup.getUid(), "objectGroup"));
+                        }
+                    case "OPSREPORT":
+                        ObjOpsReports opsReports = myClient.getOpsReportsAsObj(wellId, wellboreId);
+                        if (opsReports == null) {
+                            continue;
+                        }
+                        for (ObjOpsReport opsReport: opsReports.getOpsReport()) {
+                            if (opsReport == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(opsReport.getName(), opsReport.getUid(), "opsReport"));
+                        }
+                        break;
+                    case "RIG":
+                        ObjRigs rigs = myClient.getRigsAsObj(wellId, wellboreId);
+                        if (rigs == null) {
+                            continue;
+                        }
+                        for (ObjRig rig : rigs.getRig()) {
+                            if (rig == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig"));
+                        }
+                        break;
+                    case "RISK":
+                        ObjRisks risks = myClient.getRisksAsObj(wellId, wellboreId);
+                        if (risks == null) {
+                            continue;
+                        }
+                        for (ObjRisk risk : risks.getRisk()) {
+                            if (risk == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(risk.getName(), risk.getUid(), "risk"));
+                        }
+                        break;
+                    case "SIDEWALLCORE":
+                        ObjSidewallCores sidewallCores = myClient.getSideWallCoresAsObj(wellId, wellboreId);
+                        if (sidewallCores == null) {
+                            continue;
+                        }
+                        for (ObjSidewallCore sidewallCore : sidewallCores.getSidewallCore()) {
+                            if (sidewallCore == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(sidewallCore.getName(), sidewallCore.getUid(), "sidewallCore"));
+                        }
+                        break;
+                    case "STIMJOB":
+                        ObjStimJobs stimJobs = myClient.getStimJobsAsObj(wellId, wellboreId);
+                        if (stimJobs == null) {
+                            continue;
+                        }
+                        for (ObjStimJob stimJob : stimJobs.getStimJob()) {
+                            if (stimJob == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(stimJob.getName(), stimJob.getUid(),"stimJob"));
+                        }
+                    case "SURVEYPROGRAM":
+                        ObjSurveyPrograms surveyPrograms = myClient.getSurveyProgramsAsObj(wellId, wellboreId);
+                        if (surveyPrograms == null) {
+                            continue;
+                        }
+                        for (ObjSurveyProgram surveyProgram: surveyPrograms.getSurveyProgram()) {
+                            if (surveyProgram == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(surveyProgram.getName(), surveyProgram.getUid(), "surveyProgram"));
+                        }
+                        break;
+                    case "TARGET":
+                        ObjTargets targets = myClient.getTargetsAsObj(wellId, wellboreId);
+                        if (targets == null) {
+                            continue;
+                        }
+                        for (ObjTarget target : targets.getTarget()) {
+                            if (target == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(target.getName(), target.getUid(), "target"));
+                        }
+                        break;
+                    case "TRAJECTORY":
+                        ObjTrajectorys trajectorys = myClient.getTrajectorysAsObj(wellId, wellboreId);
+                        if (trajectorys == null) {
+                            continue;
+                        }
+                        for (ObjTrajectory trajectory: trajectorys.getTrajectory()) {
+                            if (trajectory == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory"));
+                        }
+                        break;
+                    case "TUBULAR":
+                        ObjTubulars tubulars = myClient.getTubularsAsObj(wellId, wellboreId);
+                        if (tubulars == null) {
+                            continue;
+                        }
+                        for (ObjTubular tubular: tubulars.getTubular()) {
+                            if (tubular == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(tubular.getName(), tubular.getUid(), "tubular"));
+                        }
+                        break;
+                    case "WBGEOMETRY":
+                        ObjWbGeometrys wbGeometrys = myClient.getWbGeometrysAsObj(wellId, wellboreId);
+                        if (wbGeometrys == null) {
+                            continue;
+                        }
+                        for (ObjWbGeometry wbGeometry: wbGeometrys.getWbGeometry()) {
+                            if (wbGeometry == null)
+                                continue;
+                            ids.add(new WitsmlObjectId(wbGeometry.getName(), wbGeometry.getUid(), "wbGeometry"));
+                        }
+                        break;
+                    default:
+                        getLogger().error("The Object : " + type + " is not supported/present");
+                        break;
+                }
+            } catch (Exception ex) {
+                getLogger().error("Error in getting data from WITSML server");
+            }
+        }
+        return ids;
+    }
+
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
