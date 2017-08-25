@@ -325,7 +325,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                 for (ObjWell w:wells.getWell()) {
                     if (w == null)
                         continue;
-                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well");
+                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "");
                     ids.add(objId);
                 }
                 break;
@@ -337,13 +337,13 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                 for (ObjWellbore wb:wellbores.getWellbore()){
                     if (wb == null)
                         continue;
-                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore");
+                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")");
                     ids.add(objId);
                 }
                 break;
             }
             case Wellbore:
-                ids = queryForTypes(target.getWell().getId(), target.getWellbore().getId(),target.getObjectsToQuery());
+                ids = queryForTypes(target);
                 break;
         }
         return ids;
@@ -367,8 +367,13 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         }
     }
 
-    private List<WitsmlObjectId> queryForTypes(String wellId, String wellboreId, List<String> types){
+    private List<WitsmlObjectId> queryForTypes(QueryTarget targetObj){
         List<WitsmlObjectId> ids = new ArrayList<>();
+        List<String> types = targetObj.getObjectsToQuery();
+        String wellId = targetObj.getWell().getId();
+        String wellboreId = targetObj.getWellbore().getId();
+        String parentURI = "/" + targetObj.getWell().getName() + "(" + targetObj.getWell().getId() + ")/" + targetObj.getWellbore().getName() + "(" + targetObj.getWellbore().getId() + ")";
+
         for (String type : types) {
             try {
                 switch (type.toUpperCase()) {
@@ -380,7 +385,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjAttachment attachment : attachments.getAttachment()) {
                             if (attachment == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(attachment.getName(), attachment.getUid(), "attachment"));
+                            ids.add(new WitsmlObjectId(attachment.getName(), attachment.getUid(), "attachment", parentURI));
                         }
                     case "BHARUN":
                         ObjBhaRuns bhaRuns = myClient.getBhaRunsAsObj(wellId, wellboreId);
@@ -390,7 +395,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for(ObjBhaRun bhaRun: bhaRuns.getBhaRun()) {
                             if (bhaRun == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(bhaRun.getName(), bhaRun.getUid(), "bhaRun"));
+                            ids.add(new WitsmlObjectId(bhaRun.getName(), bhaRun.getUid(), "bhaRun", parentURI));
                         }
                         break;
                     case "CEMENTJOB":
@@ -401,7 +406,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjCementJob cementJob : cementJobs.getCementJob()) {
                             if (cementJob == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(cementJob.getName(), cementJob.getUid(), "cementJob"));
+                            ids.add(new WitsmlObjectId(cementJob.getName(), cementJob.getUid(), "cementJob", parentURI));
                         }
                         break;
                     case "CHANGELOG" :
@@ -412,7 +417,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjChangeLog changeLog: changeLogs.getChangeLog()) {
                             if (changeLog == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(changeLog.getNameObject(), changeLog.getUid(), "changeLog"));
+                            ids.add(new WitsmlObjectId(changeLog.getNameObject(), changeLog.getUid(), "changeLog", parentURI));
                         }
                     case "CONVCORE":
                         ObjConvCores convCores = myClient.getConvCoresAsObj(wellId, wellboreId);
@@ -423,7 +428,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                             if (convCore == null) {
                                 continue;
                             }
-                            ids.add(new WitsmlObjectId(convCore.getName(), convCore.getUid(), "convCore"));
+                            ids.add(new WitsmlObjectId(convCore.getName(), convCore.getUid(), "convCore", parentURI));
                         }
                         break;
                     case "DRILLREPORT":
@@ -434,7 +439,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjDrillReport drillReport : drillReports.getDrillReport()) {
                             if (drillReport == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(drillReport.getName(), drillReport.getUid(), "drillReport"));
+                            ids.add(new WitsmlObjectId(drillReport.getName(), drillReport.getUid(), "drillReport", parentURI));
                         }
                         break;
                     case "FLUIDREPORT":
@@ -445,7 +450,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjFluidsReport fluidsReport : fluidsReports.getFluidsReport()) {
                             if (fluidsReport == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(fluidsReport.getName(), fluidsReport.getUid(), "fluidsReport"));
+                            ids.add(new WitsmlObjectId(fluidsReport.getName(), fluidsReport.getUid(), "fluidsReport", parentURI));
                         }
                         break;
                     case "FORMATIONMARKER":
@@ -456,7 +461,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjFormationMarker formationMarker: formationMarkers.getFormationMarker()) {
                             if (formationMarker == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(formationMarker.getName(), formationMarker.getUid(), "formationMarker"));
+                            ids.add(new WitsmlObjectId(formationMarker.getName(), formationMarker.getUid(), "formationMarker", parentURI));
                         }
                         break;
                     case "LOG":
@@ -467,7 +472,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjLog log : logs.getLog()) {
                             if (log == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log"));
+                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log", parentURI));
                         }
                         break;
                     case "MESSAGE":
@@ -478,7 +483,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjMessage message : messages.getMessage()) {
                             if (message == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message"));
+                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI));
                         }
                         break;
                     case "MUDLOG":
@@ -489,7 +494,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjMudLog mudLog: mudLogs.getMudLog()) {
                             if (mudLog == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(mudLog.getName(), mudLog.getUid(), "mudLog"));
+                            ids.add(new WitsmlObjectId(mudLog.getName(), mudLog.getUid(), "mudLog", parentURI));
                         }
                         break;
                     case "OBJECTGROUP":
@@ -500,7 +505,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjObjectGroup objectGroup : objectGroups.getObjectGroup()) {
                             if (objectGroup == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(objectGroup.getName(), objectGroup.getUid(), "objectGroup"));
+                            ids.add(new WitsmlObjectId(objectGroup.getName(), objectGroup.getUid(), "objectGroup", parentURI));
                         }
                     case "OPSREPORT":
                         ObjOpsReports opsReports = myClient.getOpsReportsAsObj(wellId, wellboreId);
@@ -510,7 +515,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjOpsReport opsReport: opsReports.getOpsReport()) {
                             if (opsReport == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(opsReport.getName(), opsReport.getUid(), "opsReport"));
+                            ids.add(new WitsmlObjectId(opsReport.getName(), opsReport.getUid(), "opsReport", parentURI));
                         }
                         break;
                     case "RIG":
@@ -521,7 +526,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjRig rig : rigs.getRig()) {
                             if (rig == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig"));
+                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig", parentURI));
                         }
                         break;
                     case "RISK":
@@ -532,7 +537,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjRisk risk : risks.getRisk()) {
                             if (risk == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(risk.getName(), risk.getUid(), "risk"));
+                            ids.add(new WitsmlObjectId(risk.getName(), risk.getUid(), "risk", parentURI));
                         }
                         break;
                     case "SIDEWALLCORE":
@@ -543,7 +548,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjSidewallCore sidewallCore : sidewallCores.getSidewallCore()) {
                             if (sidewallCore == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(sidewallCore.getName(), sidewallCore.getUid(), "sidewallCore"));
+                            ids.add(new WitsmlObjectId(sidewallCore.getName(), sidewallCore.getUid(), "sidewallCore", parentURI));
                         }
                         break;
                     case "STIMJOB":
@@ -554,7 +559,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjStimJob stimJob : stimJobs.getStimJob()) {
                             if (stimJob == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(stimJob.getName(), stimJob.getUid(),"stimJob"));
+                            ids.add(new WitsmlObjectId(stimJob.getName(), stimJob.getUid(),"stimJob", parentURI));
                         }
                     case "SURVEYPROGRAM":
                         ObjSurveyPrograms surveyPrograms = myClient.getSurveyProgramsAsObj(wellId, wellboreId);
@@ -564,7 +569,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjSurveyProgram surveyProgram: surveyPrograms.getSurveyProgram()) {
                             if (surveyProgram == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(surveyProgram.getName(), surveyProgram.getUid(), "surveyProgram"));
+                            ids.add(new WitsmlObjectId(surveyProgram.getName(), surveyProgram.getUid(), "surveyProgram", parentURI));
                         }
                         break;
                     case "TARGET":
@@ -575,7 +580,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjTarget target : targets.getTarget()) {
                             if (target == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(target.getName(), target.getUid(), "target"));
+                            ids.add(new WitsmlObjectId(target.getName(), target.getUid(), "target", parentURI));
                         }
                         break;
                     case "TRAJECTORY":
@@ -586,7 +591,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjTrajectory trajectory: trajectorys.getTrajectory()) {
                             if (trajectory == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory"));
+                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI));
                         }
                         break;
                     case "TUBULAR":
@@ -597,7 +602,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjTubular tubular: tubulars.getTubular()) {
                             if (tubular == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(tubular.getName(), tubular.getUid(), "tubular"));
+                            ids.add(new WitsmlObjectId(tubular.getName(), tubular.getUid(), "tubular", parentURI));
                         }
                         break;
                     case "WBGEOMETRY":
@@ -608,7 +613,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
                         for (ObjWbGeometry wbGeometry: wbGeometrys.getWbGeometry()) {
                             if (wbGeometry == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(wbGeometry.getName(), wbGeometry.getUid(), "wbGeometry"));
+                            ids.add(new WitsmlObjectId(wbGeometry.getName(), wbGeometry.getUid(), "wbGeometry", parentURI));
                         }
                         break;
                     default:
