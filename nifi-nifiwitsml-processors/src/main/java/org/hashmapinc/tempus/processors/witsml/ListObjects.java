@@ -134,7 +134,6 @@ public class ListObjects extends AbstractProcessor {
 
         String uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(file).getValue();
 
-        logger.error("trying to parse " + uri);
         List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes));
 
         String data = "";
