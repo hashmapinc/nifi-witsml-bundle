@@ -40,11 +40,11 @@ public class QueryTargetTester {
     public void TestQueryTargetCreatorWell(){
         List<String> objects = new ArrayList<>();
         objects.add("well");
-        QueryTarget target = QueryTarget.parseURI("/testWell(789)", objects);
+        QueryTarget target = QueryTarget.parseURI("/LPCFED.#2H(us_107870)", objects);
         assertEquals(QueryLevel.Well, target.getQueryLevel());
         assertArrayEquals(objects.toArray(), target.getObjectsToQuery().toArray());
-        assertEquals("testWell", target.getWell().getName());
-        assertEquals("789", target.getWell().getId());
+        assertEquals("LPCFED.#2H", target.getWell().getName());
+        assertEquals("us_107870", target.getWell().getId());
         assertEquals("well", target.getWell().getType());
         assertEquals(null, target.getWellbore());
     }

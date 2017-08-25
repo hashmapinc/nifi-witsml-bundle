@@ -58,6 +58,7 @@ public class ListObjects extends AbstractProcessor {
                     "for this property is /wellName(wellId)/wellboreName(wellboreId). You can only subscribe " +
                     "to a server, a well, or a wellbore.")
             .required(true)
+            .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -127,9 +128,14 @@ public class ListObjects extends AbstractProcessor {
             return;
         }
 
+        FlowFile file = session.get();
+
         String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().split(",");
 
-        List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(context.getProperty(PARENT_URI).getValue(), Arrays.asList(objectTypes));
+        String uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(file).getValue();
+
+        logger.error("trying to parse " + uri);
+        List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes));
 
         String data = "";
         try {
@@ -140,20 +146,16 @@ public class ListObjects extends AbstractProcessor {
 
         final String jsonData = data;
 
-        FlowFile flowFile = session.create();
-        if (flowFile == null) {
-            return;
-        }
-
         try {
-            flowFile = session.write(flowFile, new OutputStreamCallback() {
+            file = session.write(file, new OutputStreamCallback() {
                 @Override
                 public void process(OutputStream out) throws IOException {
                     out.write(jsonData.getBytes());
                 }
             });
-            session.transfer(flowFile, SUCCESS);
+            session.transfer(file, SUCCESS);
         } catch (ProcessException ex) {
+            session.transfer(file, FAILURE);
             logger.error("Unable to Process : " + ex);
         }
     }

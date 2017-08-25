@@ -8,11 +8,14 @@ public class WitsmlObjectId {
     private String name;
     private String id;
     private String type;
+    private String uri;
 
     public WitsmlObjectId(String name, String id, String type) {
         this.name = name;
         this.id = id;
         this.type = type;
+        this.uri =  "/" + getName() + "(" + getId() + ")";
+
     }
 
     public String getName(){
@@ -27,7 +30,7 @@ public class WitsmlObjectId {
         return type;
     }
 
-
+    public String getUri(){ return uri; }
 
     @Override
     public boolean equals(Object obj) {
