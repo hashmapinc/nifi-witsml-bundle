@@ -352,7 +352,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                 for (ObjWell w:wells.getWell()) {
                     if (w == null)
                         continue;
-                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well");
+                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "");
                     ids.add(objId);
                 }
                 break;
@@ -364,7 +364,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                 for (ObjWellbore wb:wellbores.getWellbore()){
                     if (wb == null)
                         continue;
-                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore");
+                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")");
                     ids.add(objId);
                 }
                 break;
@@ -378,6 +378,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
 
     private List<WitsmlObjectId> queryForTypes(String wellId, String wellboreId, List<String> types){
         List<WitsmlObjectId> ids = new ArrayList<>();
+        
         for (String type : types) {
             try {
                 switch (type.toUpperCase()) {

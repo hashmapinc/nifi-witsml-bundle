@@ -10,11 +10,11 @@ public class WitsmlObjectId {
     private String type;
     private String uri;
 
-    public WitsmlObjectId(String name, String id, String type) {
+    public WitsmlObjectId(String name, String id, String type, String parentUri) {
         this.name = name;
         this.id = id;
         this.type = type;
-        this.uri =  "/" + getName() + "(" + getId() + ")";
+        this.uri =  parentUri + "/" + getName() + "(" + getId() + ")";
 
     }
 

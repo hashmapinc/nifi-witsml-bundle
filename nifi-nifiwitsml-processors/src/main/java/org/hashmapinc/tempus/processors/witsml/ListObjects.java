@@ -126,6 +126,8 @@ public class ListObjects extends AbstractProcessor {
         }
 
         FlowFile file = session.get();
+        if (file == null)
+            file = session.create();
 
         String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
 
