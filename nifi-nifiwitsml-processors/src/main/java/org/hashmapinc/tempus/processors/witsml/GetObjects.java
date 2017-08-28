@@ -154,9 +154,9 @@ public class GetObjects extends AbstractProcessor {
                     context.getProperty(WELLBORE_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
                     object.toUpperCase());
 
-            FlowFile flowFile = session.create();
+            FlowFile flowFile = session.get();
             if (flowFile == null) {
-                return;
+                flowFile = session.create();
             }
             try {
                 flowFile = session.write(flowFile, new OutputStreamCallback() {

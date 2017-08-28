@@ -216,9 +216,9 @@ public class GetData extends AbstractProcessor {
 
             if (logHashCode != logData.hashCode()) {
                 logHashCode = logData.hashCode();
-                FlowFile logDataFlowfile = session.create();
+                FlowFile logDataFlowfile = session.get();
                 if (logDataFlowfile == null) {
-                    return;
+                    logDataFlowfile = session.create();
                 }
                 try {
                     logDataFlowfile = session.write(logDataFlowfile, new OutputStreamCallback() {
@@ -248,9 +248,9 @@ public class GetData extends AbstractProcessor {
                 }
                 if (jsonLogCurveInfo != "") {
                     String finalData = jsonLogCurveInfo;
-                    FlowFile logFlowfile = session.create();
+                    FlowFile logFlowfile = session.get();
                     if (logFlowfile == null) {
-                        return;
+                        logFlowfile = session.create();
                     }
                     try {
                         logFlowfile = session.write(logFlowfile, new OutputStreamCallback() {
@@ -293,9 +293,9 @@ public class GetData extends AbstractProcessor {
             }
             if (jsonGeologyInterval != "") {
                 String finalMudlogData = jsonGeologyInterval;
-                FlowFile mudLogFlowfile = session.create();
+                FlowFile mudLogFlowfile = session.get();
                 if (mudLogFlowfile == null) {
-                    return;
+                    mudLogFlowfile = session.create();
                 }
                 try {
                     mudLogFlowfile = session.write(mudLogFlowfile, new OutputStreamCallback() {
@@ -335,9 +335,9 @@ public class GetData extends AbstractProcessor {
             }
             if (jsonTrajectoryStation != "") {
                 String finalTrajectoryData = jsonTrajectoryStation;
-                FlowFile trajectoryFlowfile = session.create();
+                FlowFile trajectoryFlowfile = session.get();
                 if (trajectoryFlowfile == null) {
-                    return;
+                    trajectoryFlowfile =session.create();
                 }
                 try {
                     trajectoryFlowfile = session.write(trajectoryFlowfile, new OutputStreamCallback() {
