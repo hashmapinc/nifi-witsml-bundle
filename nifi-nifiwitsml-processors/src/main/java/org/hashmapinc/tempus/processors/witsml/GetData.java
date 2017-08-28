@@ -74,8 +74,8 @@ public class GetData extends AbstractProcessor {
     public static final PropertyDescriptor LOG_ID = new PropertyDescriptor
             .Builder().name("LOG ID")
             .displayName("Log ID")
-            .expressionLanguageSupported(true)
             .description("Specify the Log Id")
+            .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -91,6 +91,7 @@ public class GetData extends AbstractProcessor {
             .Builder().name("TRAJECTORY ID")
             .displayName("Trajectory ID")
             .description("Specify the Trajectory Id")
+            .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -190,35 +191,38 @@ public class GetData extends AbstractProcessor {
             return;
         }
 
+        FlowFile flowFile = session.get();
+        if (flowFile == null) {
+            flowFile = session.create();
+        }
 
         /**********LOG DATA***********/
-        writeLogData(context, session, witsmlServiceApi);
-
-
+        writeLogData(context, session, witsmlServiceApi, flowFile);
 
         /*************MUDLOG DATA**********/
-        writeMudLogData(context, session, witsmlServiceApi);
-
+        writeMudLogData(context, session, witsmlServiceApi, flowFile);
 
         /*********TRAJECTORY DATA***********/
-        writeTrajectoryData(context, session, witsmlServiceApi);
+        writeTrajectoryData(context, session, witsmlServiceApi, flowFile);
+
+        session.remove(flowFile);
     }
 
-    private void writeLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi) {
+    private void writeLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
         ObjLogs logs = null;
-        if (context.getProperty(LOG_ID).getValue() != null) {
-            logs = witsmlServiceApi.getLogData(context.getProperty(WELL_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(WELLBORE_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(LOG_ID).getValue().toString().replaceAll("[;\\s\t]", ""));
+        if (context.getProperty(LOG_ID).evaluateAttributeExpressions(flowFile).getValue() != null) {
+            logs = witsmlServiceApi.getLogData(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(LOG_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""));
         }
         if (logs != null) {
             String logData = LogDataHelper.getCSV(logs.getLog().get(0), true);
 
             if (logHashCode != logData.hashCode()) {
                 logHashCode = logData.hashCode();
-                FlowFile logDataFlowfile = session.get();
+                FlowFile logDataFlowfile = session.create(flowFile);
                 if (logDataFlowfile == null) {
-                    logDataFlowfile = session.create();
+                    return;
                 }
                 try {
                     logDataFlowfile = session.write(logDataFlowfile, new OutputStreamCallback() {
@@ -248,9 +252,9 @@ public class GetData extends AbstractProcessor {
                 }
                 if (jsonLogCurveInfo != "") {
                     String finalData = jsonLogCurveInfo;
-                    FlowFile logFlowfile = session.get();
+                    FlowFile logFlowfile = session.create(flowFile);
                     if (logFlowfile == null) {
-                        logFlowfile = session.create();
+                        return;
                     }
                     try {
                         logFlowfile = session.write(logFlowfile, new OutputStreamCallback() {
@@ -271,12 +275,12 @@ public class GetData extends AbstractProcessor {
         }
     }
 
-    private void writeMudLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi) {
+    private void writeMudLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
         ObjMudLogs mudLogs = null;
-        if (context.getProperty(MUDLOG_ID).getValue() != null) {
-            mudLogs = witsmlServiceApi.getMudLogData(context.getProperty(WELL_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(WELLBORE_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(MUDLOG_ID).getValue().toString().replaceAll("[;\\s\t]", ""));
+        if (context.getProperty(MUDLOG_ID).evaluateAttributeExpressions(flowFile).getValue() != null) {
+            mudLogs = witsmlServiceApi.getMudLogData(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(MUDLOG_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""));
         }
         if (mudLogs != null) {
             List<CsGeologyInterval> geologyIntervals = mudLogs.getMudLog().get(0).getGeologyInterval();
@@ -293,9 +297,9 @@ public class GetData extends AbstractProcessor {
             }
             if (jsonGeologyInterval != "") {
                 String finalMudlogData = jsonGeologyInterval;
-                FlowFile mudLogFlowfile = session.get();
+                FlowFile mudLogFlowfile = session.create(flowFile);
                 if (mudLogFlowfile == null) {
-                    mudLogFlowfile = session.create();
+                    return;
                 }
                 try {
                     mudLogFlowfile = session.write(mudLogFlowfile, new OutputStreamCallback() {
@@ -313,12 +317,12 @@ public class GetData extends AbstractProcessor {
         }
     }
 
-    private void writeTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi) {
+    private void writeTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
         ObjTrajectorys trajectorys = null;
-        if (context.getProperty(TRAJECTORY_ID).getValue() != null) {
-            trajectorys = witsmlServiceApi.getTrajectoryData(context.getProperty(WELL_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(WELLBORE_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(TRAJECTORY_ID).getValue().toString().replaceAll("[;\\s\t]", ""));
+        if (context.getProperty(TRAJECTORY_ID).evaluateAttributeExpressions(flowFile).getValue() != null) {
+            trajectorys = witsmlServiceApi.getTrajectoryData(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(TRAJECTORY_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""));
         }
         if (trajectorys != null) {
             List<CsTrajectoryStation> trajectoryStations = trajectorys.getTrajectory().get(0).getTrajectoryStation();
@@ -335,9 +339,9 @@ public class GetData extends AbstractProcessor {
             }
             if (jsonTrajectoryStation != "") {
                 String finalTrajectoryData = jsonTrajectoryStation;
-                FlowFile trajectoryFlowfile = session.get();
+                FlowFile trajectoryFlowfile = session.create(flowFile);
                 if (trajectoryFlowfile == null) {
-                    trajectoryFlowfile =session.create();
+                    return;
                 }
                 try {
                     trajectoryFlowfile = session.write(trajectoryFlowfile, new OutputStreamCallback() {
