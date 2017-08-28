@@ -83,7 +83,6 @@ public class GetObjects extends AbstractProcessor {
             .Builder().name("OBJECT LIST")
             .displayName("Objects")
             .description("Specify the Objects to get from WITSML Server. Can specify multiple comma seperated objects ")
-            .expressionLanguageSupported(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
@@ -149,27 +148,31 @@ public class GetObjects extends AbstractProcessor {
         String objectList = context.getProperty(OBJECT_LIST).getValue().replaceAll("[;\\s\t]", "").toUpperCase();
         String[] objectArray = objectList.split(",");
 
+        FlowFile flowFile = session.get();
+        if (flowFile == null) {
+            flowFile = session.create();
+        }
         for (String object : objectArray) {
-            String data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(WELLBORE_ID).getValue().toString().replaceAll("[;\\s\t]", ""),
+            FlowFile dataFlowFile = session.create(flowFile);
+            String data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                    context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
                     object.toUpperCase());
-
-            FlowFile flowFile = session.get();
-            if (flowFile == null) {
-                flowFile = session.create();
+            if (data == null) {
+                continue;
             }
             try {
-                flowFile = session.write(flowFile, new OutputStreamCallback() {
+                dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
                     @Override
                     public void process(OutputStream out) throws IOException {
                         out.write(data.getBytes());
                     }
                 });
-                session.transfer(flowFile, SUCCESS);
+                session.transfer(dataFlowFile, SUCCESS);
             } catch (ProcessException ex) {
                 logger.error("Unable to Process : " + ex);
-                session.transfer(flowFile, FAIULURE);
+                session.transfer(dataFlowFile, FAIULURE);
             }
         }
+        session.remove(flowFile);
     }
 }
