@@ -22,4 +22,5 @@ public interface IWitsmlServiceApi extends ControllerService {
     ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId);
     ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId);
     List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes);
+    Object getObjectData(String wellId, String wellboreId, String objType, String objectId);
 }

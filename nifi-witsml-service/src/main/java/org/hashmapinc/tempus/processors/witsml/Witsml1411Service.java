@@ -5,9 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
-import com.hashmapinc.tempus.witsml.api.LogRequestTracker;
-import com.hashmapinc.tempus.witsml.api.MudlogRequestTracker;
-import com.hashmapinc.tempus.witsml.api.TrajectoryRequestTracker;
+import com.hashmapinc.tempus.witsml.api.*;
 import javafx.scene.control.IndexRange;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -22,7 +20,6 @@ import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.InitializationException;
 
 import com.hashmapinc.tempus.witsml.client.Client;
-import com.hashmapinc.tempus.witsml.api.WitsmlVersion;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -42,6 +39,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     private static LogRequestTracker logTracker = new LogRequestTracker();
     private static MudlogRequestTracker mudLogTracker = new MudlogRequestTracker();
     private static TrajectoryRequestTracker trajectoryTracker = new TrajectoryRequestTracker();
+    private static ObjectRequestTracker objectTracker = new ObjectRequestTracker();
     private static ObjectMapper mapper = new ObjectMapper();
 
 
@@ -627,6 +625,14 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         return ids;
     }
 
+    @Override
+    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId) {
+        objectTracker.initalize(myClient, wellId, wellboreId);
+        objectTracker.setVersion(WitsmlVersion.VERSION_1411);
+        objectTracker.setObjectId(objectId);
+        objectTracker.setObjectType(objType);
+        return objectTracker.ExecuteRequest();
+    }
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);

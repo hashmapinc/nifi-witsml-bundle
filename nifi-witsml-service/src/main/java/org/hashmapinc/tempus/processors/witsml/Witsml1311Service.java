@@ -42,9 +42,7 @@ import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWell;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbore;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbores;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWells;
-import com.hashmapinc.tempus.witsml.api.LogRequestTracker;
-import com.hashmapinc.tempus.witsml.api.MudlogRequestTracker;
-import com.hashmapinc.tempus.witsml.api.TrajectoryRequestTracker;
+import com.hashmapinc.tempus.witsml.api.*;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
@@ -56,7 +54,6 @@ import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.InitializationException;
 
 import com.hashmapinc.tempus.witsml.client.Client;
-import com.hashmapinc.tempus.witsml.api.WitsmlVersion;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 
 import java.text.SimpleDateFormat;
@@ -79,6 +76,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     private static LogRequestTracker logTracker = new LogRequestTracker();
     private static MudlogRequestTracker mudLogTracker = new MudlogRequestTracker();
     private static TrajectoryRequestTracker trajectoryTracker = new TrajectoryRequestTracker();
+    private static ObjectRequestTracker objectTracker = new ObjectRequestTracker();
     private static ObjectMapper mapper = new ObjectMapper();
 
     //Properties
@@ -618,6 +616,14 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         return ids;
     }
 
+    @Override
+    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId) {
+        objectTracker.initalize(myClient, wellId, wellboreId);
+        objectTracker.setVersion(WitsmlVersion.VERSION_1311);
+        objectTracker.setObjectId(objectId);
+        objectTracker.setObjectType(objType);
+        return objectTracker.ExecuteRequest();
+    }
 
     private ObjWells getWellData(){
         try {

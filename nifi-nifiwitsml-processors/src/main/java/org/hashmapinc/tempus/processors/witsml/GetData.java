@@ -95,6 +95,22 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor OBJECT_TYPE = new PropertyDescriptor
+            .Builder().name("OBJECT TYPE")
+            .displayName("Object Type")
+            .description("Specify the Type of Object")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
+    public static final PropertyDescriptor OBJECT_ID = new PropertyDescriptor
+            .Builder().name("OBJECT ID")
+            .displayName("Object ID")
+            .description("Specify the Object Id")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
     public static final Relationship LOG_DATA_SUCCESS = new Relationship.Builder()
             .name("Log Data Success")
             .description("Log Data in CSV format received form Server")
@@ -135,6 +151,16 @@ public class GetData extends AbstractProcessor {
             .description("TrajectoryStation Data not successfully received from the server")
             .build();
 
+    public static final Relationship OBJECT_SUCCESS = new Relationship.Builder()
+            .name("Object Success")
+            .description("Object Data successfully received from the server")
+            .build();
+
+    public static final Relationship OBJECT_FAILURE = new Relationship.Builder()
+            .name("Object Failure")
+            .description("Object Data not successfully received from the server")
+            .build();
+
     private List<PropertyDescriptor> descriptors;
 
     private Set<Relationship> relationships;
@@ -148,6 +174,8 @@ public class GetData extends AbstractProcessor {
         descriptors.add(LOG_ID);
         descriptors.add(MUDLOG_ID);
         descriptors.add(TRAJECTORY_ID);
+        descriptors.add(OBJECT_TYPE);
+        descriptors.add(OBJECT_ID);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<Relationship>();
@@ -159,6 +187,8 @@ public class GetData extends AbstractProcessor {
         relationships.add(MUDLOG_FAILURE);
         relationships.add(TRAJECTORY_SUCCESS);
         relationships.add(TRAJECTORY_FAILURE);
+        relationships.add(OBJECT_SUCCESS);
+        relationships.add(OBJECT_FAILURE);
         this.relationships = Collections.unmodifiableSet(relationships);
         setMapper();
     }
@@ -205,6 +235,8 @@ public class GetData extends AbstractProcessor {
         /*********TRAJECTORY DATA***********/
         writeTrajectoryData(context, session, witsmlServiceApi, flowFile);
 
+        /********OBJECT DATA************/
+        writeObjectData(context, session, witsmlServiceApi, flowFile);
         session.remove(flowFile);
     }
 
@@ -354,6 +386,55 @@ public class GetData extends AbstractProcessor {
                 } catch (ProcessException ex) {
                     getLogger().error("Error in Trajectory Data : " + ex);
                     session.transfer(trajectoryFlowfile, TRAJECTORY_FAILURE);
+                }
+            }
+        }
+    }
+
+    private void writeObjectData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
+        String[] objectTypeArray = null;
+        String[] objectIdArray = null;
+        if (context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(flowFile).getValue() != null && context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue() != null) {
+            objectTypeArray = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "").toUpperCase().split(",");
+            objectIdArray = context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue().replace("[;\\s\t]", "").split(",");
+            if (objectIdArray.length != objectTypeArray.length) {
+                getLogger().error("Number of Object Types and Number of Obejct Ids are not equal");
+                return;
+            }
+        }
+
+        if (objectIdArray != null && objectTypeArray != null) {
+            for (int i = 0; i < objectIdArray.length; i++) {
+                Object object = witsmlServiceApi.getObjectData(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString(),
+                        context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString(),
+                        objectTypeArray[i], objectIdArray[i]);
+
+                if (object != null) {
+                    String jsonObjectData = "";
+                    try {
+                        jsonObjectData = mapper.writeValueAsString(object);
+                    } catch (JsonProcessingException ex) {
+                        getLogger().error("Error in converting Object " + objectTypeArray[i] + " to Json String");
+                    }
+                    if (jsonObjectData != "") {
+                        final String jsonData = jsonObjectData;
+                        FlowFile objectFlowfile = session.create(flowFile);
+                        if (objectFlowfile == null) {
+                            continue;
+                        }
+                        try {
+                            objectFlowfile = session.write(objectFlowfile, new OutputStreamCallback() {
+                                @Override
+                                public void process(OutputStream outputStream) throws IOException {
+                                    outputStream.write(jsonData.getBytes());
+                                }
+                            });
+                            session.transfer(objectFlowfile, OBJECT_SUCCESS);
+                        } catch (ProcessException ex) {
+                            getLogger().error("Error in Object Data : " + ex);
+                            session.transfer(objectFlowfile, OBJECT_FAILURE);
+                        }
+                    }
                 }
             }
         }
