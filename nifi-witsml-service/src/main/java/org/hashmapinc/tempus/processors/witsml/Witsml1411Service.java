@@ -36,10 +36,6 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
 
     // Global session variables used by all processors using an instance
     private static Client myClient = null;
-    private static LogRequestTracker logTracker = new LogRequestTracker();
-    private static MudlogRequestTracker mudLogTracker = new MudlogRequestTracker();
-    private static TrajectoryRequestTracker trajectoryTracker = new TrajectoryRequestTracker();
-    private static ObjectRequestTracker objectTracker = new ObjectRequestTracker();
     private static ObjectMapper mapper = new ObjectMapper();
 
 
@@ -285,7 +281,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId) {
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker) {
         logTracker.setVersion(WitsmlVersion.VERSION_1411);
         logTracker.setLogId(logId);
         logTracker.initalize(myClient, wellId, wellboreId);
@@ -294,7 +290,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId) {
+    public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudLogTracker) {
         mudLogTracker.setVersion(WitsmlVersion.VERSION_1411);
         mudLogTracker.setMudlogId(mudLogId);
         mudLogTracker.initalize(myClient, wellId, wellboreId);
@@ -303,7 +299,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryid) {
+    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryid, TrajectoryRequestTracker trajectoryTracker) {
         trajectoryTracker.setVersion(WitsmlVersion.VERSION_1411);
         trajectoryTracker.setTrajectoryId(trajectoryid);
         trajectoryTracker.initalize(myClient, wellId, wellboreId);
@@ -626,7 +622,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId) {
+    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker) {
         objectTracker.initalize(myClient, wellId, wellboreId);
         objectTracker.setVersion(WitsmlVersion.VERSION_1411);
         objectTracker.setObjectId(objectId);

@@ -157,7 +157,9 @@ public class GetObjects extends AbstractProcessor {
             String data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
                     context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
                     object.toUpperCase());
+            dataFlowFile = session.putAttribute(dataFlowFile, "objectType", object.toLowerCase());
             if (data == null) {
+                session.remove(dataFlowFile);
                 continue;
             }
             try {

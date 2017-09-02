@@ -23,6 +23,11 @@
             <artifactId>WitsmlObjects</artifactId>
             <version>1.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.hashmapinc.tempus</groupId>
+            <artifactId>witsml-client</artifactId>
+            <version>${witsml.client.version}</version>
+        </dependency>
     </dependencies>
 
 </project>
