@@ -93,6 +93,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     public static final PropertyDescriptor PASSWORD = new PropertyDescriptor
             .Builder().name("Password")
             .description("Specify the password for Witsml Server")
+            .sensitive(true)
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
