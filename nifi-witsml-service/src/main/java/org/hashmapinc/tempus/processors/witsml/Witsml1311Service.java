@@ -2,6 +2,8 @@ package org.hashmapinc.tempus.processors.witsml;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlMarshal;
+import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlVersionTransformer;
 import com.hashmapinc.tempus.WitsmlObjects.v1311.*;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRun;
@@ -64,6 +66,10 @@ import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.util.Tuple;
 
+import javax.xml.bind.JAXBException;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
+
 /**
  * Created by Chris on 6/2/17.
  */
@@ -74,6 +80,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     // Global session variables used by all processors using an instance
     private static Client myClient = null;
     private static ObjectMapper mapper = new ObjectMapper();
+    private WitsmlVersionTransformer transformer = new WitsmlVersionTransformer();
 
     //Properties
     public static final PropertyDescriptor ENDPOINT_URL = new PropertyDescriptor
@@ -106,6 +113,9 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         props.add(USERNAME);
         props.add(PASSWORD);
         properties = Collections.unmodifiableList(props);
+    }
+
+    public Witsml1311Service() throws TransformerConfigurationException {
     }
 
     @Override
@@ -336,12 +346,27 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes){
+    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter){
         QueryTarget target = QueryTarget.parseURI(uri, objectTypes);
         List<WitsmlObjectId> ids = new ArrayList<>();
         switch (target.getQueryLevel()){
             case Server: {
-                ObjWells wells = getWellData();
+                String rawWells = getWell("", wellFilter);
+                String convertedWells = "";
+                try {
+                    convertedWells = transformer.convertVersion(rawWells);
+                    getLogger().error(convertedWells);
+                } catch (TransformerException e) {
+                    e.printStackTrace();
+                }
+
+                ObjWells wells = null;
+                try {
+                    wells = WitsmlMarshal.deserialize(convertedWells, ObjWells.class);
+                } catch (JAXBException e) {
+                    e.printStackTrace();
+                }
+
                 if (wells == null)
                     return null;
                 for (ObjWell w:wells.getWell()) {
@@ -620,6 +645,28 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         objectTracker.setObjectId(objectId);
         objectTracker.setObjectType(objType);
         return objectTracker.ExecuteRequest();
+    }
+
+    @Override
+    public String getWell(String wellId, String status) {
+        String wells = null;
+        try {
+            wells = myClient.getWells(wellId, status);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return wells;
+    }
+
+    @Override
+    public String getWellbore(String wellId, String wellboreId) {
+        String wellbores = null;
+        try {
+            wellbores = myClient.getWells(wellId, wellboreId);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return wellbores;
     }
 
     private ObjWells getWellData(){

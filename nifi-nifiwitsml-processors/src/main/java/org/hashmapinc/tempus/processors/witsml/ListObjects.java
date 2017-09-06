@@ -12,6 +12,7 @@ import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.Validator;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
@@ -67,6 +68,14 @@ public class ListObjects extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor WELL_STATUS_FILTER = new PropertyDescriptor
+            .Builder().name("WELL STATUS FILTER")
+            .displayName("Well Status Filter")
+            .description("Specifies the wellStatus filter to be used when querying for wells.")
+            .addValidator(Validator.VALID)
+            .required(false)
+            .build();
+
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Successful Query to Server")
@@ -87,6 +96,7 @@ public class ListObjects extends AbstractProcessor {
         descriptors.add(WITSML_SERVICE);
         descriptors.add(PARENT_URI);
         descriptors.add(OBJECT_TYPES);
+        descriptors.add(WELL_STATUS_FILTER);
 
         this.descriptors = Collections.unmodifiableList(descriptors);
 
@@ -133,7 +143,7 @@ public class ListObjects extends AbstractProcessor {
 
         String uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(file).getValue();
 
-        List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes));
+        List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes), context.getProperty(WELL_STATUS_FILTER).getValue());
 
         String data = "";
         try {

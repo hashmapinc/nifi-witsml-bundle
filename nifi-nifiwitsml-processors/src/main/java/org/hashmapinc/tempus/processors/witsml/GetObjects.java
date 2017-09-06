@@ -38,11 +38,7 @@ import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Tags({"WITSML", "WitsmlObjects"})
 @CapabilityDescription("Get Objects from Witsml Server. Supported Objects : bharuns, cementjob, drillreport," +
@@ -75,7 +71,7 @@ public class GetObjects extends AbstractProcessor {
             .displayName("Wellbore ID")
             .description("Specify the Wellbore Id")
             .expressionLanguageSupported(true)
-            .required(true)
+            .required(false)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -152,29 +148,57 @@ public class GetObjects extends AbstractProcessor {
         if (flowFile == null) {
             flowFile = session.create();
         }
-        for (String object : objectArray) {
-            FlowFile dataFlowFile = session.create(flowFile);
-            String data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
-                    object.toUpperCase());
-            dataFlowFile = session.putAttribute(dataFlowFile, "objectType", object.toLowerCase());
-            if (data == null) {
-                session.remove(dataFlowFile);
-                continue;
+
+        Boolean wellRequested = Arrays.asList(objectArray).contains("WELL");
+
+        Boolean wellboreRequested = Arrays.asList(objectArray).contains("WELLBORE");
+
+        String data;
+        FlowFile dataFlowFile = session.create(flowFile);
+
+        if (wellRequested) {
+            data = witsmlServiceApi.getWell(context.getProperty(WELL_ID).getValue(), "");
+            final String outData = data;
+            dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
+                @Override
+                public void process(OutputStream out) throws IOException {
+                    out.write(outData.getBytes());
+                }
+            });
+        } else if (wellboreRequested) {
+            data = witsmlServiceApi.getWellbore(context.getProperty(WELL_ID).getValue(), context.getProperty(WELLBORE_ID).getValue());
+            final String outData = data;
+            dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
+                @Override
+                public void process(OutputStream out) throws IOException {
+                    out.write(outData.getBytes());
+                }
+            });
+        } else {
+            for (String object : objectArray) {
+
+                data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                        context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                        object.toUpperCase());
+                dataFlowFile = session.putAttribute(dataFlowFile, "objectType", object.toLowerCase());
+                if (data == null) {
+                    continue;
+                }
+                try {
+                    final String outData = data;
+                    dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
+                        @Override
+                        public void process(OutputStream out) throws IOException {
+                            out.write(outData.getBytes());
+                        }
+                    });
+                    session.transfer(dataFlowFile, SUCCESS);
+                } catch (ProcessException ex) {
+                    logger.error("Unable to Process : " + ex);
+                    session.transfer(dataFlowFile, FAIULURE);
+                }
             }
-            try {
-                dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
-                    @Override
-                    public void process(OutputStream out) throws IOException {
-                        out.write(data.getBytes());
-                    }
-                });
-                session.transfer(dataFlowFile, SUCCESS);
-            } catch (ProcessException ex) {
-                logger.error("Unable to Process : " + ex);
-                session.transfer(dataFlowFile, FAIULURE);
-            }
+            session.remove(flowFile);
         }
-        session.remove(flowFile);
     }
 }

@@ -309,6 +309,10 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
+    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter) {
+        return getAvailableObjects(uri, objectTypes, "");
+    }
+
     public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes){
         QueryTarget target = QueryTarget.parseURI(uri, objectTypes);
         List<WitsmlObjectId> ids = new ArrayList<>();
@@ -629,6 +633,16 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         objectTracker.setObjectId(objectId);
         objectTracker.setObjectType(objType);
         return objectTracker.ExecuteRequest();
+    }
+
+    @Override
+    public String getWell(String wellId, String status) {
+        return null;
+    }
+
+    @Override
+    public String getWellbore(String wellId, String wellboreId) {
+        return null;
     }
 
     private void setMapper() {

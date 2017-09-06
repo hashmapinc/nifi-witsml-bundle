@@ -1,8 +1,6 @@
 package org.hashmapinc.tempus.processors.witsml;
 
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectorys;
+import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import com.hashmapinc.tempus.witsml.api.LogRequestTracker;
 import com.hashmapinc.tempus.witsml.api.MudlogRequestTracker;
 import com.hashmapinc.tempus.witsml.api.ObjectRequestTracker;
@@ -25,6 +23,8 @@ public interface IWitsmlServiceApi extends ControllerService {
     ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker);
     ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudlogTracker);
     ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, TrajectoryRequestTracker trajectoryTracker);
-    List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes);
+    List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter);
     Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker);
+    String getWell(String wellId, String status);
+    String getWellbore(String wellId, String wellboreId);
 }
