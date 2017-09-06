@@ -23,7 +23,7 @@
     </parent>
 
     <properties>
-        <witsml.client.version>1.0.1</witsml.client.version>
+        <witsml.client.version>1.0.5</witsml.client.version>
     </properties>
 
     <groupId>org.hashmapinc.tempus</groupId>

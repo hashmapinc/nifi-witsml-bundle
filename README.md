@@ -35,7 +35,7 @@ To build the library and get started first off clone the GitHub repository
 
 Change directory into the nifi-witsml-bundle
 
-    cd witsml0client
+    cd nifi-witsml-bundle
     
 Execute a maven clean install
 
