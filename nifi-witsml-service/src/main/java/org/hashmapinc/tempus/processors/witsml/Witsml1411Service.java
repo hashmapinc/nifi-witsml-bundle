@@ -1,27 +1,19 @@
 package org.hashmapinc.tempus.processors.witsml;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import com.hashmapinc.tempus.witsml.api.*;
-import javafx.scene.control.IndexRange;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
-import org.apache.nifi.annotation.lifecycle.OnDisabled;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.controller.AbstractControllerService;
 import org.apache.nifi.controller.ConfigurationContext;
 import org.apache.nifi.logging.ComponentLog;
-import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.InitializationException;
 
 import com.hashmapinc.tempus.witsml.client.Client;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +28,6 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
 
     // Global session variables used by all processors using an instance
     private static Client myClient = null;
-    private static ObjectMapper mapper = new ObjectMapper();
 
 
     //Properties
@@ -87,189 +78,56 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         myClient.setPassword(context.getProperty(PASSWORD).getValue());
         myClient.setVersion(WitsmlVersion.VERSION_1411);
         myClient.connect();
-        setMapper();
     }
 
     @Override
-    public String getObject(String wellId, String wellboreId, String object) {
+    public Object getObject(String wellId, String wellboreId, String object) {
         try {
             switch (object) {
                 case "ATTACHMENT" :
-                    ObjAttachments attachments = myClient.getAttachmentsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(attachments);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Attachments Object to Json" + ex);
-                    }
-                    break;
+                    return myClient.getAttachmentsAsObj(wellId, wellboreId);
                 case "BHARUN":
-                    ObjBhaRuns bhaRuns = myClient.getBhaRunsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(bhaRuns);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting BhaRuns Object to Json" + ex);
-                    }
-                    break;
+                    return myClient.getBhaRunsAsObj(wellId, wellboreId);
                 case "CEMENTJOB":
-                    ObjCementJobs cementJobs = myClient.getCementJobsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(cementJobs);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting CementJobs to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getCementJobsAsObj(wellId, wellboreId);
                 case "CHANGELOG" :
-                    ObjChangeLogs changeLogs = myClient.getChangeLogsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(changeLogs);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting ChangeLogs Object to Json" + ex);
-                    }
-                    break;
+                    return myClient.getChangeLogsAsObj(wellId, wellboreId);
                 case "CONVCORE":
-                    ObjConvCores convCores = myClient.getConvCoresAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(convCores);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting ConvCores to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getConvCoresAsObj(wellId, wellboreId);
                 case "DRILLREPORT" :
-                    ObjDrillReports drillReports = myClient.getDrillReportsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(drillReports);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting DrillReports Object to Json" + ex);
-                    }
-                    break;
+                    return myClient.getDrillReportsAsObj(wellId, wellboreId);
                 case "FLUIDREPORT":
-                    ObjFluidsReports fluidsReports = myClient.getFluidsReportsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(fluidsReports);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting FluidsReports to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getFluidsReportsAsObj(wellId, wellboreId);
                 case "FORMATIONMARKER":
-                    ObjFormationMarkers formationMarkers = myClient.getFormationMarkersAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(formationMarkers);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting FormationMarkers to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getFormationMarkersAsObj(wellId, wellboreId);
                 case "LOG":
-                    ObjLogs logs = myClient.getLogMetadataAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(logs);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Logs to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getLogMetadataAsObj(wellId, wellboreId);
                 case "MESSAGE":
-                    ObjMessages messages = myClient.getMessagesAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(messages);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Messages to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getMessagesAsObj(wellId, wellboreId);
                 case "MUDLOG":
-                    ObjMudLogs mudLogs = myClient.getMudLogsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(mudLogs);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting MudLogs to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getMudLogsAsObj(wellId, wellboreId);
                 case "OBJECTGROUP" :
-                    ObjObjectGroups objObjectGroups = myClient.getObjectGroupsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(objObjectGroups);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting ObjectGroups Object to Json" + ex);
-                    }
-                    break;
+                    return myClient.getObjectGroupsAsObj(wellId, wellboreId);
                 case "OPSREPORT":
-                    ObjOpsReports opsReports = myClient.getOpsReportsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(opsReports);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting OpsReports to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getOpsReportsAsObj(wellId, wellboreId);
                 case "RIG":
-                    ObjRigs rigs = myClient.getRigsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(rigs);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Rigs to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getRigsAsObj(wellId, wellboreId);
                 case "RISK":
-                    ObjRisks risks = myClient.getRisksAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(risks);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Risks to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getRisksAsObj(wellId, wellboreId);
                 case "SIDEWALLCORE":
-                    ObjSidewallCores sidewallCores = myClient.getSideWallCoresAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(sidewallCores);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting SideWallCores to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getSideWallCoresAsObj(wellId, wellboreId);
                 case "STIMJOB" :
-                    ObjStimJobs stimJobs = myClient.getStimJobsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(stimJobs);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting StimJobs Object to Json" + ex);
-                    }
-                    break;
+                    return myClient.getStimJobsAsObj(wellId, wellboreId);
                 case "SURVEYPROGRAM":
-                    ObjSurveyPrograms surveyPrograms = myClient.getSurveyProgramsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(surveyPrograms);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting SurveyPrograms to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getSurveyProgramsAsObj(wellId, wellboreId);
                 case "TARGET":
-                    ObjTargets targets = myClient.getTargetsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(targets);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Targets to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getTargetsAsObj(wellId, wellboreId);
                 case "TRAJECTORY":
-                    ObjTrajectorys trajectorys = myClient.getTrajectorysAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(trajectorys);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Trajectorys to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getTrajectorysAsObj(wellId, wellboreId);
                 case "TUBULAR":
-                    ObjTubulars tubulars = myClient.getTubularsAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(tubulars);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Tubulars to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getTubularsAsObj(wellId, wellboreId);
                 case "WBGEOMETRY":
-                    ObjWbGeometrys wbGeometrys = myClient.getWbGeometrysAsObj(wellId, wellboreId);
-                    try {
-                        return mapper.writeValueAsString(wbGeometrys);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting WbGeometrys to Json : " + ex);
-                    }
-                    break;
+                    return myClient.getWbGeometrysAsObj(wellId, wellboreId);
                 default:
                     getLogger().error("The Object : " + object + " is not supported/present");
                     break;
@@ -309,16 +167,13 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter) {
-        return getAvailableObjects(uri, objectTypes, "");
-    }
-
-    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes){
+    public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter){
         QueryTarget target = QueryTarget.parseURI(uri, objectTypes);
         List<WitsmlObjectId> ids = new ArrayList<>();
         switch (target.getQueryLevel()){
             case Server: {
-                ObjWells wells = getWellData();
+                ObjWells wells = getWell("", wellFilter);
+
                 if (wells == null)
                     return null;
                 for (ObjWell w:wells.getWell()) {
@@ -636,17 +491,24 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public String getWell(String wellId, String status) {
-        return null;
+    public ObjWells getWell(String wellId, String status) {
+        ObjWells wells = null;
+        try {
+            wells = myClient.getWellsAsObj(wellId, status);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return wells;
     }
 
     @Override
-    public String getWellbore(String wellId, String wellboreId) {
-        return null;
-    }
-
-    private void setMapper() {
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
-        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
+    public ObjWellbores getWellbore(String wellId, String wellboreId) {
+        ObjWellbores wellbores = null;
+        try {
+            wellbores = myClient.getWellboresForWellAsObj(wellId, wellboreId);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return wellbores;
     }
 }

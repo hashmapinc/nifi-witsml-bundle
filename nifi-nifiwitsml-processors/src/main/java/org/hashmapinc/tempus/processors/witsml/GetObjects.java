@@ -16,6 +16,11 @@
  */
 package org.hashmapinc.tempus.processors.witsml;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbores;
+import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWells;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
@@ -38,6 +43,7 @@ import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Tags({"WITSML", "WitsmlObjects"})
@@ -48,6 +54,8 @@ import java.util.*;
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
 @WritesAttributes({@WritesAttribute(attribute="", description="")})
 public class GetObjects extends AbstractProcessor {
+
+    private static ObjectMapper mapper = new ObjectMapper();
 
     public static final PropertyDescriptor WITSML_SERVICE = new PropertyDescriptor
             .Builder().name("WITSML SERVICE")
@@ -88,7 +96,7 @@ public class GetObjects extends AbstractProcessor {
             .description("Data successfully received from the server")
             .build();
 
-    public static final Relationship FAIULURE = new Relationship.Builder()
+    public static final Relationship FAILURE = new Relationship.Builder()
             .name("Failure")
             .description("Data not successfully received from the server")
             .build();
@@ -109,8 +117,9 @@ public class GetObjects extends AbstractProcessor {
         final Set<Relationship> relationships = new HashSet<Relationship>();
         relationships.add(SUCCESS);
         this.relationships = Collections.unmodifiableSet(relationships);
-        relationships.add(FAIULURE);
+        relationships.add(FAILURE);
         this.relationships = Collections.unmodifiableSet(relationships);
+        setMapper();
     }
 
     @Override
@@ -153,52 +162,90 @@ public class GetObjects extends AbstractProcessor {
 
         Boolean wellboreRequested = Arrays.asList(objectArray).contains("WELLBORE");
 
-        String data;
+        String data = null;
         FlowFile dataFlowFile = session.create(flowFile);
 
         if (wellRequested) {
-            data = witsmlServiceApi.getWell(context.getProperty(WELL_ID).getValue(), "");
-            final String outData = data;
-            dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
-                @Override
-                public void process(OutputStream out) throws IOException {
-                    out.write(outData.getBytes());
-                }
-            });
+            ObjWells wells = null;
+            wells = witsmlServiceApi.getWell(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue(), "");
+            try {
+                data = mapper.writeValueAsString(wells);
+            } catch (JsonProcessingException ex) {
+                getLogger().error("Error in converting Wells Object to Json" + ex);
+            }
+            try {
+                final String outData = data;
+                dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
+                    @Override
+                    public void process(OutputStream out) throws IOException {
+                        out.write(outData.getBytes());
+                    }
+                });
+                session.transfer(dataFlowFile, SUCCESS);
+            } catch (ProcessException ex) {
+                logger.error("Unable to Process : " + ex);
+                session.transfer(dataFlowFile, FAILURE);
+            }
         } else if (wellboreRequested) {
-            data = witsmlServiceApi.getWellbore(context.getProperty(WELL_ID).getValue(), context.getProperty(WELLBORE_ID).getValue());
-            final String outData = data;
-            dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
-                @Override
-                public void process(OutputStream out) throws IOException {
-                    out.write(outData.getBytes());
-                }
-            });
+            ObjWellbores wellbores = null;
+            wellbores = witsmlServiceApi.getWellbore(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue(),
+                                                     context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue());
+            try {
+                data = mapper.writeValueAsString(wellbores);
+            } catch (JsonProcessingException ex) {
+                getLogger().error("Error in converting Wellbores Object to Json" + ex);
+            }
+            try {
+                final String outData = data;
+                dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
+                    @Override
+                    public void process(OutputStream out) throws IOException {
+                        out.write(outData.getBytes());
+                    }
+                });
+            } catch (ProcessException ex) {
+                logger.error("Unable to Process : " + ex);
+                session.transfer(dataFlowFile, FAILURE);
+            }
+            session.transfer(dataFlowFile, SUCCESS);
         } else {
             for (String object : objectArray) {
-
-                data = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
+                data = null;
+                FlowFile dataFile = session.create(flowFile);
+                Object objData = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
                         context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", ""),
                         object.toUpperCase());
-                dataFlowFile = session.putAttribute(dataFlowFile, "objectType", object.toLowerCase());
+                try {
+                    data = mapper.writeValueAsString(objData);
+                } catch (JsonProcessingException ex) {
+                    getLogger().error("Error in converting Object to Json" + ex);
+                }
+                dataFile = session.putAttribute(dataFile, "objectType", object.toLowerCase());
                 if (data == null) {
+                    session.remove(dataFile);
                     continue;
                 }
                 try {
                     final String outData = data;
-                    dataFlowFile = session.write(dataFlowFile, new OutputStreamCallback() {
+                    dataFile = session.write(dataFile, new OutputStreamCallback() {
                         @Override
                         public void process(OutputStream out) throws IOException {
                             out.write(outData.getBytes());
                         }
                     });
-                    session.transfer(dataFlowFile, SUCCESS);
+                    session.transfer(dataFile, SUCCESS);
                 } catch (ProcessException ex) {
                     logger.error("Unable to Process : " + ex);
-                    session.transfer(dataFlowFile, FAIULURE);
+                    session.transfer(dataFile, FAILURE);
                 }
             }
-            session.remove(flowFile);
+            session.remove(dataFlowFile);
         }
+        session.remove(flowFile);
+    }
+
+    private void setMapper() {
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
+        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
     }
 }
