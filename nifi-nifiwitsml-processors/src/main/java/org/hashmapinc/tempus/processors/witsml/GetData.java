@@ -26,6 +26,8 @@ import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 
 import java.io.IOException;
@@ -77,6 +79,15 @@ public class GetData extends AbstractProcessor {
             .displayName("Log ID")
             .description("Specify the Log Id")
             .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
+    public static final PropertyDescriptor LOG_DATA_FORMAT = new PropertyDescriptor
+            .Builder().name("LOG DATA FORMAT")
+            .displayName("Log Data Format")
+            .description("Specify the format in which Log Data need to be Output")
+            .allowableValues("JSON", "CSV")
+            .defaultValue("JSON")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -173,6 +184,7 @@ public class GetData extends AbstractProcessor {
         descriptors.add(WELL_ID);
         descriptors.add(WELLBORE_ID);
         descriptors.add(LOG_ID);
+        descriptors.add(LOG_DATA_FORMAT);
         descriptors.add(MUDLOG_ID);
         descriptors.add(TRAJECTORY_ID);
         descriptors.add(OBJECT_TYPE);
@@ -265,16 +277,20 @@ public class GetData extends AbstractProcessor {
 
                 if (logHashCode != logData.hashCode()) {
                     logHashCode = logData.hashCode();
+                    if (context.getProperty(LOG_DATA_FORMAT).getValue().toString().equals("JSON")) {
+                        logData = convertLogDataToJson(logData, logId.toString());
+                    }
                     FlowFile logDataFlowfile = session.create(flowFile);
                     if (logDataFlowfile == null) {
                         return;
                     }
+                    final String outLogData = logData;
                     try {
                         logDataFlowfile = session.write(logDataFlowfile, new OutputStreamCallback() {
 
                             @Override
                             public void process(OutputStream out) throws IOException {
-                                out.write(logData.toString().getBytes());
+                                out.write(outLogData.toString().getBytes());
                             }
 
                         });
@@ -511,6 +527,28 @@ public class GetData extends AbstractProcessor {
                 }
             }
         }
+    }
+
+    private String convertLogDataToJson(String logData, String logId) {
+        String[] logDataArray = logData.split("\n");
+        String[] mnemonicsArray = logDataArray[0].split(",");
+
+        JSONArray jsonArray = new JSONArray();
+        String[] values;
+        for (int i = 2; i < logDataArray.length; i++) {
+            values = logDataArray[i].split(",");
+
+            for (int j = 1; j < mnemonicsArray.length; j++) {
+                JSONObject jsonObject = new JSONObject()
+                                        .put("uri", logId+"/"+mnemonicsArray[j])
+                                        .put("value", values[j])
+                                        .put("index", values[0]);
+                jsonArray.put(jsonObject);
+            }
+        }
+        JSONObject jsonObject = new JSONObject()
+                                .put("list", jsonArray);
+        return jsonObject.get("list").toString();
     }
 
     private void setMapper() {
