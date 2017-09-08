@@ -266,7 +266,7 @@ public class GetData extends AbstractProcessor {
         long startTime = 0;
         long currentTime;
         long timeSpan;
-        while (logId != null) {
+        while (logId != null && !logId.equals("")) {
             ObjLogs logs = null;
             logs = witsmlServiceApi.getLogData(wellId.toString(),
                                                wellboreId.toString(),
@@ -361,7 +361,7 @@ public class GetData extends AbstractProcessor {
         long startTime = 0;
         long currentTime;
         long timeSpan;
-        while (mudLogId != null) {
+        while (mudLogId != null && !mudLogId.equals("")) {
             ObjMudLogs mudLogs = null;
             mudLogs = witsmlServiceApi.getMudLogData(wellId.toString(),
                                                      wellboreId.toString(),
@@ -427,7 +427,7 @@ public class GetData extends AbstractProcessor {
         long startTime = 0;
         long currentTime;
         long timeSpan;
-        while (trajectoryId != null) {
+        while (trajectoryId != null && !trajectoryId.equals("")) {
             ObjTrajectorys trajectorys = null;
             trajectorys = witsmlServiceApi.getTrajectoryData(wellId,
                                                              wellboreId,
@@ -494,6 +494,9 @@ public class GetData extends AbstractProcessor {
 
         if (objectIdArray != null && objectTypeArray != null) {
             for (int i = 0; i < objectIdArray.length; i++) {
+                if (objectIdArray[i].equals("")) {
+                    continue;
+                }
                 Object object = witsmlServiceApi.getObjectData(wellId.toString(),
                                                                wellboreId.toString(),
                                                                objectTypeArray[i], objectIdArray[i], objectTracker);
