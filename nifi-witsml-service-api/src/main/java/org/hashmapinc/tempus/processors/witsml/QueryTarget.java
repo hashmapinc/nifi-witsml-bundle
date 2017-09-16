@@ -42,13 +42,13 @@ public class QueryTarget {
         this.objectsToQuery = objectsToQuery;
     }
 
-    public static QueryTarget parseURI(String uri, List<String> objectsToQuery){
+    public static QueryTarget parseURI(String uri, List<String> objectsToQuery) throws ArrayIndexOutOfBoundsException{
         String[] nodes = uri.split("/");
         QueryTarget target = new QueryTarget();
         target.objectsToQuery = objectsToQuery;
         if (nodes.length == 0) {
-             target.queryLevel = QueryLevel.Server;
-             return target;
+            target.queryLevel = QueryLevel.Server;
+            return target;
         }
 
         WitsmlObjectId well = ParseNameAndId(nodes[1], "well");

@@ -20,6 +20,7 @@ import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.util.Tuple;
+import org.omg.CORBA.Environment;
 
 
 import java.io.IOException;
@@ -86,6 +87,11 @@ public class ListObjects extends AbstractProcessor {
             .description("Failed query to server")
             .build();
 
+    public static final Relationship ORIGINAL = new Relationship.Builder()
+            .name("Original")
+            .description("The original flowfile that lead to the result.")
+            .build();
+
     private List<PropertyDescriptor> descriptors;
 
     private Set<Relationship> relationships;
@@ -103,6 +109,7 @@ public class ListObjects extends AbstractProcessor {
         final Set<Relationship> relationships = new HashSet<Relationship>();
         relationships.add(SUCCESS);
         relationships.add(FAILURE);
+        relationships.add(ORIGINAL);
         this.relationships = Collections.unmodifiableSet(relationships);
         setMapper();
     }
@@ -125,39 +132,83 @@ public class ListObjects extends AbstractProcessor {
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
 
-        final ComponentLog logger = getLogger();
-        IWitsmlServiceApi witsmlServiceApi;
-
-        try {
-            witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
-        } catch (Exception ex) {
-            logger.error(ex.getMessage());
-            return;
+        FlowFile inputFile = session.get();
+        FlowFile outputFile;
+        if (inputFile == null)
+            outputFile = session.create();
+        else {
+            outputFile = session.create(inputFile);
         }
 
-        FlowFile file = session.get();
-        if (file == null)
-            file = session.create();
-
-        session.putAttribute(file, "mime.type", "application/json");
-
-        String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
-
-        String uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(file).getValue();
-
-        List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes), context.getProperty(WELL_STATUS_FILTER).getValue());
-
-        String data = "";
         try {
-            data = mapper.writeValueAsString(objects);
-        } catch (JsonProcessingException e) {
-            getLogger().error("issues getting object: " + e.getMessage());
+            final ComponentLog logger = getLogger();
+            IWitsmlServiceApi witsmlServiceApi;
+
+            try {
+                witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
+            } catch (Exception ex) {
+                logger.error(ex.getMessage());
+                return;
+            }
+
+
+
+            session.putAttribute(outputFile, "mime.type", "application/json");
+
+            String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
+
+            String uri;
+            if (inputFile != null)
+                uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(inputFile).getValue();
+            else
+                uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions().getValue();
+
+            List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes), context.getProperty(WELL_STATUS_FILTER).getValue());
+
+            String data;
+
+            try {
+                if (objects.size() == 0) {
+                    session.remove(outputFile);
+                    if (inputFile != null)
+                        session.transfer(inputFile, ORIGINAL);
+                    return;
+                }
+                data = mapper.writeValueAsString(objects);
+            } catch (JsonProcessingException e) {
+                getLogger().error("Error converting objects to JSON in ListObject: " + e.getMessage());
+                if (inputFile != null)
+                    session.transfer(inputFile, FAILURE);
+                session.remove(outputFile);
+                return;
+            }
+
+            if (data == null) {
+                session.remove(outputFile);
+                if (inputFile != null)
+                    session.transfer(inputFile, ORIGINAL);
+                return;
+            }
+
+            final String jsonData = data;
+
+            if (jsonData.equals("")) {
+                session.remove(outputFile);
+                if (inputFile != null)
+                    session.transfer(inputFile, ORIGINAL);
+                return;
+            }
+
+            outputFile = session.write(outputFile, out -> out.write(jsonData.getBytes()));
+            session.transfer(outputFile, SUCCESS);
+            if (inputFile != null)
+                session.transfer(inputFile, ORIGINAL);
+        }catch (Exception ex){
+            getLogger().error("Error getting objects in ListObjects" + ex.getMessage() + System.lineSeparator() + ex.getStackTrace());
+            session.remove(outputFile);
+            if (inputFile != null)
+                session.transfer(inputFile, FAILURE);
         }
-
-        final String jsonData = data;
-
-        file = session.write(file, out -> out.write(jsonData.getBytes()));
-        session.transfer(file, SUCCESS);
     }
 
     private void setMapper() {

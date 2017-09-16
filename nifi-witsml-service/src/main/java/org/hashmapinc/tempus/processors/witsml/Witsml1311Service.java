@@ -54,10 +54,7 @@ import org.apache.nifi.reporting.InitializationException;
 
 import com.hashmapinc.tempus.witsml.client.Client;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -186,7 +183,10 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                     break;
             }
         } catch (Exception ex) {
-            getLogger().error("Error in getting data from WITSML server");
+            StringWriter sw = new StringWriter();
+            ex.printStackTrace(new PrintWriter(sw));
+            String exceptionAsString = sw.toString();
+            getLogger().error("Error in getting data from WITSML server (Witsml1311Service::getObject): " + ex.getMessage() + System.lineSeparator() + exceptionAsString);
         }
         return null;
     }
@@ -334,7 +334,16 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
 
     @Override
     public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter){
-        QueryTarget target = QueryTarget.parseURI(uri, objectTypes);
+        QueryTarget target = null;
+        try {
+            target = QueryTarget.parseURI(uri, objectTypes);
+        } catch (ArrayIndexOutOfBoundsException ex){
+            getLogger().error("Error parsing URI: " + uri + " in getAvailableObjects");
+        }
+
+        if (target == null)
+            return new ArrayList<>();
+
         List<WitsmlObjectId> ids = new ArrayList<>();
         switch (target.getQueryLevel()){
             case Server: {
@@ -458,7 +467,11 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         }
                         break;
                     case "LOG":
+                        getLogger().error("**********Getting Log************");
+                        getLogger().error("well id: " + wellId + System.lineSeparator() + "wellbore id: " + wellboreId);
                         ObjLogs logs = myClient.getLogMetadataAsObj(wellId, wellboreId);
+                        getLogger().error("**********Got Log************");
+
                         if (logs == null) {
                             continue;
                         }
@@ -617,7 +630,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         break;
                 }
             } catch (Exception ex) {
-                getLogger().error("Error in getting data from WITSML server");
+                getLogger().error("Error in getting data from WITSML server (Witsml1311Service::queryForTypes): " + ex.getMessage());
             }
         }
         return ids;
