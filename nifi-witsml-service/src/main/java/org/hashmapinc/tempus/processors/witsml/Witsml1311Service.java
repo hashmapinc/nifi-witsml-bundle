@@ -503,9 +503,15 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         break;
                     case "RIG":
                         ObjRigs rigs = myClient.getRigsAsObj(wellId, wellboreId);
+
                         if (rigs == null) {
                             continue;
                         }
+
+                        if (rigs.getRig().size() == 0) {
+                            continue;
+                        }
+
                         for (ObjRig rig : rigs.getRig()) {
                             if (rig == null)
                                 continue;
@@ -558,9 +564,15 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         break;
                     case "TRAJECTORY":
                         ObjTrajectorys trajectorys = myClient.getTrajectorysAsObj(wellId, wellboreId);
+
                         if (trajectorys == null) {
                             continue;
                         }
+
+                        if (trajectorys.getTrajectory().size() == 0) {
+                            continue;
+                        }
+
                         for (ObjTrajectory trajectory: trajectorys.getTrajectory()) {
                             if (trajectory == null)
                                 continue;
