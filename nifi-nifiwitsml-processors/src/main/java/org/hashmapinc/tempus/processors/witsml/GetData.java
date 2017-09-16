@@ -5,12 +5,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
-import com.hashmapinc.tempus.witsml.api.LogRequestTracker;
-import com.hashmapinc.tempus.witsml.api.MudlogRequestTracker;
-import com.hashmapinc.tempus.witsml.api.ObjectRequestTracker;
-import com.hashmapinc.tempus.witsml.api.TrajectoryRequestTracker;
-import org.apache.axis.session.Session;
-import org.apache.axis.utils.JavaUtils;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
@@ -24,14 +18,12 @@ import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 
-import java.io.IOException;
-import java.io.OutputStream;
+import javax.xml.datatype.XMLGregorianCalendar;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -42,11 +34,13 @@ import java.util.*;
 @CapabilityDescription("Get Data from Witsml Server for Objects Log, Mudlog and Trajectory.")
 @SeeAlso({})
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
-@WritesAttributes({@WritesAttribute(attribute="", description="")})
+@WritesAttributes({
+        @WritesAttribute(attribute="object.type", description="The WITSML type of the object being returned"),
+        @WritesAttribute(attribute="next.query.depth", description="The depth to start the next query"),
+        @WritesAttribute(attribute="next.query.time", description="The time to start the next query")})
 public class GetData extends AbstractProcessor {
 
     private static ObjectMapper mapper = new ObjectMapper();
-    private static final int TIMEOUT = 1200;
 
     public static final PropertyDescriptor WITSML_SERVICE = new PropertyDescriptor
             .Builder().name("WITSML SERVICE")
@@ -74,45 +68,14 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
-    public static final PropertyDescriptor LOG_ID = new PropertyDescriptor
-            .Builder().name("LOG ID")
-            .displayName("Log ID")
-            .description("Specify the Log Id")
-            .expressionLanguageSupported(true)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .build();
-
-    public static final PropertyDescriptor LOG_DATA_FORMAT = new PropertyDescriptor
-            .Builder().name("LOG DATA FORMAT")
-            .displayName("Log Data Format")
-            .description("Specify the format in which Log Data need to be Output")
-            .allowableValues("JSON", "CSV")
-            .defaultValue("JSON")
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .build();
-
-    public static final PropertyDescriptor MUDLOG_ID = new PropertyDescriptor
-            .Builder().name("MUDLOG ID")
-            .displayName("MudLog ID")
-            .description("Specify the Mudlog Id")
-            .expressionLanguageSupported(true)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .build();
-
-    public static final PropertyDescriptor TRAJECTORY_ID = new PropertyDescriptor
-            .Builder().name("TRAJECTORY ID")
-            .displayName("Trajectory ID")
-            .description("Specify the Trajectory Id")
-            .expressionLanguageSupported(true)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .build();
-
     public static final PropertyDescriptor OBJECT_TYPE = new PropertyDescriptor
             .Builder().name("OBJECT TYPE")
             .displayName("Object Type")
-            .description("Specify the Type of Object")
+            .description("Specify the type of the object to query for. Must only be trajectory or log.")
             .expressionLanguageSupported(true)
+            .allowableValues("trajectory", "log")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .required(true)
             .build();
 
     public static final PropertyDescriptor OBJECT_ID = new PropertyDescriptor
@@ -121,57 +84,53 @@ public class GetData extends AbstractProcessor {
             .description("Specify the Object Id")
             .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .required(true)
             .build();
 
-    public static final Relationship LOG_DATA_SUCCESS = new Relationship.Builder()
-            .name("Log Data Success")
-            .description("Log Data in CSV format received form Server")
+    public static final PropertyDescriptor QUERY_START_DEPTH = new PropertyDescriptor
+            .Builder().name("QUERY START DEPTH")
+            .displayName("Query Start Depth")
+            .description("The depth at which to start the query from.")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
-    public static final Relationship LOG_DATA_FAILURE = new Relationship.Builder()
-            .name("Log Data Failure")
-            .description("Log Data is not received from server")
+    public static final PropertyDescriptor QUERY_START_TIME = new PropertyDescriptor
+            .Builder().name("QUERY START TIME")
+            .displayName("Query Start Time")
+            .description("The time at which to start the query from.")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
-    public static final Relationship LOGCURVEINFO_SUCCESS = new Relationship.Builder()
-            .name("LogCurveInfo Success")
-            .description("Log Data successfully received from the server")
+    public static final PropertyDescriptor LOG_DATA_FORMAT = new PropertyDescriptor
+            .Builder().name("LOG DATA FORMAT")
+            .displayName("Log Data Format")
+            .description("The format to return log data in, either CSV or JSON")
+            .allowableValues("JSON", "CSV")
+            .required(true)
+            .defaultValue("JSON")
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
-    public static final Relationship LOGCURVEINFO_FAILURE = new Relationship.Builder()
-            .name("LogCurveInfo Failure")
-            .description("Log Data not successfully received from the server")
-            .build();
-
-    public static final Relationship MUDLOG_SUCCESS = new Relationship.Builder()
-            .name("ModLog Success")
-            .description("MudLog GeologyInterval Data successfully received from the server")
-            .build();
-
-    public static final Relationship MUDLOG_FAILURE = new Relationship.Builder()
-            .name("MudLog Failure")
-            .description("MudLog GeologyInterval Data not successfully received from the server")
-            .build();
-
-    public static final Relationship TRAJECTORY_SUCCESS = new Relationship.Builder()
-            .name("Trajectory Success")
-            .description("TrajectoryStation Data successfully received from the server")
-            .build();
-
-    public static final Relationship TRAJECTORY_FAILURE = new Relationship.Builder()
-            .name("Trajectory Failure")
-            .description("TrajectoryStation Data not successfully received from the server")
-            .build();
-
-    public static final Relationship OBJECT_SUCCESS = new Relationship.Builder()
-            .name("Object Success")
+    public static final Relationship SUCCESS = new Relationship.Builder()
+            .name("Success")
             .description("Object Data successfully received from the server")
             .build();
 
-    public static final Relationship OBJECT_FAILURE = new Relationship.Builder()
-            .name("Object Failure")
+    public static final Relationship PARTIAL = new Relationship.Builder()
+            .name("Partial")
+            .description("The growing object data has not full been received yet and should be routed back for a re-query.")
+            .build();
+
+    public static final Relationship FAILURE = new Relationship.Builder()
+            .name("Failure")
             .description("Object Data not successfully received from the server")
             .build();
+
+    public static final String OBJECT_TYPE_ATTRIBUTE = "object.type";
+    public static final String NEXT_QUERY_DEPTH_ATTRIBUTE = "next.query.depth";
+    public static final String NEXT_QUERY_TIME_ATTRIBUTE = "next.query.time";
 
     private List<PropertyDescriptor> descriptors;
 
@@ -179,29 +138,19 @@ public class GetData extends AbstractProcessor {
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
-        final List<PropertyDescriptor> descriptors = new ArrayList<PropertyDescriptor>();
+        final List<PropertyDescriptor> descriptors = new ArrayList<>();
         descriptors.add(WITSML_SERVICE);
         descriptors.add(WELL_ID);
         descriptors.add(WELLBORE_ID);
-        descriptors.add(LOG_ID);
-        descriptors.add(LOG_DATA_FORMAT);
-        descriptors.add(MUDLOG_ID);
-        descriptors.add(TRAJECTORY_ID);
-        descriptors.add(OBJECT_TYPE);
         descriptors.add(OBJECT_ID);
+        descriptors.add(LOG_DATA_FORMAT);
+        descriptors.add(OBJECT_TYPE);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
-        final Set<Relationship> relationships = new HashSet<Relationship>();
-        relationships.add(LOG_DATA_SUCCESS);
-        relationships.add(LOG_DATA_FAILURE);
-        relationships.add(LOGCURVEINFO_SUCCESS);
-        relationships.add(LOGCURVEINFO_FAILURE);
-        relationships.add(MUDLOG_SUCCESS);
-        relationships.add(MUDLOG_FAILURE);
-        relationships.add(TRAJECTORY_SUCCESS);
-        relationships.add(TRAJECTORY_FAILURE);
-        relationships.add(OBJECT_SUCCESS);
-        relationships.add(OBJECT_FAILURE);
+        final Set<Relationship> relationships = new HashSet<>();
+        relationships.add(SUCCESS);
+        relationships.add(FAILURE);
+        relationships.add(PARTIAL);
         this.relationships = Collections.unmodifiableSet(relationships);
         setMapper();
     }
@@ -227,308 +176,167 @@ public class GetData extends AbstractProcessor {
         final ComponentLog logger = getLogger();
         IWitsmlServiceApi witsmlServiceApi;
 
+        // Get the Witsml Controller Service
         try {
             witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
         } catch (Exception ex) {
-            logger.error(ex.getMessage());
+            logger.error("Error resolving the WITSML controller service in the GetData processor " + ex.getMessage());
             return;
         }
 
+        // Gets the incoming flowfile
         FlowFile flowFile = session.get();
+
+        // If the flowfile is null this is the first processor in the flow (hopefully, or something is very wrong)
         if (flowFile == null) {
             flowFile = session.create();
         }
 
-        /**********LOG DATA***********/
-        writeLogData(context, session, witsmlServiceApi, flowFile);
+        processData(context, session, witsmlServiceApi, flowFile);
 
-        /*************MUDLOG DATA**********/
-        writeMudLogData(context, session, witsmlServiceApi, flowFile);
-
-        /*********TRAJECTORY DATA***********/
-        writeTrajectoryData(context, session, witsmlServiceApi, flowFile);
-
-        /********OBJECT DATA************/
-        writeObjectData(context, session, witsmlServiceApi, flowFile);
         session.remove(flowFile);
     }
 
-    private void writeLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
-        long logHashCode = 0;
-        LogRequestTracker logTracker = new LogRequestTracker();
+    private void processData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile parentFlowFile){
+
+        String queryType = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(parentFlowFile).getValue();
+        switch (queryType){
+            case "log":{
+                getLogData(context, session, witsmlServiceApi, parentFlowFile);
+                break;
+            }
+            case "trajectory":{
+                getTrajectoryData(context, session, witsmlServiceApi, parentFlowFile);
+            }
+            default:{
+
+            }
+        }
+    }
+
+    private void getLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
         String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
-        String logId = null;
-        if (context.getProperty(LOG_ID).evaluateAttributeExpressions(flowFile).getValue() == null) {
+
+        // Get the properties
+        String logId = context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
+        String startTime = context.getProperty(QUERY_START_TIME).evaluateAttributeExpressions(flowFile).getValue();
+        String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
+
+        // Make the query
+        ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime);
+        ObjLog targetLog = logs.getLog().get(0);
+
+        // Get the CSV data
+        String logData = LogDataHelper.getCSV(logs.getLog().get(0), true);
+
+        // Determine if we have to convert to JSON
+        if (context.getProperty(LOG_DATA_FORMAT).getValue().equals("JSON")) {
+            logData = convertLogDataToJson(logData, logId);
+        }
+
+        // Create the new flowfile
+        FlowFile logDataFlowfile = session.create(flowFile);
+
+        if (logDataFlowfile == null) {
             return;
         }
-        logId = context.getProperty(LOG_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
-        long startTime = 0;
-        long currentTime;
-        long timeSpan;
-        while (logId != null && !logId.equals("")) {
-            ObjLogs logs = null;
-            logs = witsmlServiceApi.getLogData(wellId.toString(),
-                                               wellboreId.toString(),
-                                               logId.toString(),
-                                               logTracker);
-            if (logs != null) {
-                String logData = LogDataHelper.getCSV(logs.getLog().get(0), true);
 
-                if (logHashCode != logData.hashCode()) {
-                    logHashCode = logData.hashCode();
-                    if (context.getProperty(LOG_DATA_FORMAT).getValue().toString().equals("JSON")) {
-                        logData = convertLogDataToJson(logData, logId.toString());
-                    }
-                    FlowFile logDataFlowfile = session.create(flowFile);
-                    if (logDataFlowfile == null) {
-                        return;
-                    }
-                    final String outLogData = logData;
-                    try {
-                        logDataFlowfile = session.write(logDataFlowfile, new OutputStreamCallback() {
+        // The final data to write to the flow file
+        final String logDataToWrite = logData;
 
-                            @Override
-                            public void process(OutputStream out) throws IOException {
-                                out.write(outLogData.toString().getBytes());
-                            }
+        // Write the flowfile data
+        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(logDataToWrite.getBytes()));
 
-                        });
-                        session.transfer(logDataFlowfile, LOG_DATA_SUCCESS);
-                    } catch (ProcessException ex) {
-                        getLogger().error("Error in Log Data : " + ex);
-                        session.transfer(logDataFlowfile, LOG_DATA_FAILURE);
-                    }
+        // Set attributes
+        String objectType = "depth";
+        if (targetLog.getIndexType().equals(LogIndexType.DATE_TIME)){
+            objectType = "date time";
+        }
 
-
-                    List<CsLogCurveInfo> logCurveInfos = logs.getLog().get(0).getLogCurveInfo();
-                    String jsonLogCurveInfo = "";
-                    if (!logCurveInfos.isEmpty()) {
-                        try {
-                            jsonLogCurveInfo = mapper.writeValueAsString(logCurveInfos);
-                        } catch (JsonProcessingException ex) {
-                            getLogger().error("Error in converting LogCureveInfo to Json :" + ex);
-                        }
-
-                    }
-                    if (jsonLogCurveInfo != "") {
-                        String finalData = jsonLogCurveInfo;
-                        FlowFile logFlowfile = session.create(flowFile);
-                        if (logFlowfile == null) {
-                            return;
-                        }
-                        try {
-                            logFlowfile = session.write(logFlowfile, new OutputStreamCallback() {
-
-                                @Override
-                                public void process(OutputStream out) throws IOException {
-                                    out.write(finalData.toString().getBytes());
-                                }
-
-                            });
-                            session.transfer(logFlowfile, LOGCURVEINFO_SUCCESS);
-                        } catch (ProcessException ex) {
-                            getLogger().error("Error in Log Data : " + ex);
-                            session.transfer(logFlowfile, LOGCURVEINFO_FAILURE);
-                        }
-                    }
-                    startTime = System.currentTimeMillis();
-                    currentTime = 0;
-                    timeSpan = 0;
-                } else {
-                    currentTime = System.currentTimeMillis();
-                    timeSpan = (currentTime - startTime) / 1000;
-                    if (timeSpan >= TIMEOUT) {
-                        break;
-                    }
-                }
-            } else {
-                break;
+        // Determine where to route the data
+        logDataFlowfile = session.putAttribute(logDataFlowfile, OBJECT_TYPE_ATTRIBUTE, objectType);
+        if (targetLog.isObjectGrowing()){
+            if (objectType.equals("depth")) {
+                logDataFlowfile = session.putAttribute(logDataFlowfile,
+                        NEXT_QUERY_DEPTH_ATTRIBUTE, Double.toString(targetLog.getEndIndex().getValue()));
             }
+            else {
+                    logDataFlowfile = session.putAttribute(logDataFlowfile,
+                            NEXT_QUERY_TIME_ATTRIBUTE, getISODate(targetLog.getEndDateTimeIndex()));
+            }
+            session.transfer(logDataFlowfile, PARTIAL);
+        }
+        else
+            session.transfer(logDataFlowfile, SUCCESS);
+
+        getLogCurveInfos(session, targetLog, flowFile);
+    }
+
+    private void getLogCurveInfos(ProcessSession session, ObjLog targetLog, FlowFile flowFile){
+        List<CsLogCurveInfo> logCurveInfos = targetLog.getLogCurveInfo();
+
+        String jsonLogCurveInfo = "";
+
+        if (!logCurveInfos.isEmpty()) {
+            try {
+                jsonLogCurveInfo = mapper.writeValueAsString(logCurveInfos);
+            } catch (JsonProcessingException ex) {
+                getLogger().error("Error in converting LogCurveInfo to JSON :" + ex.getMessage());
+            }
+        }
+        if (!jsonLogCurveInfo.equals("")) {
+            String finalData = jsonLogCurveInfo;
+            FlowFile logCurveInfoFlowfile = session.create(flowFile);
+            if (logCurveInfoFlowfile == null) {
+                return;
+            }
+            logCurveInfoFlowfile = session.write(logCurveInfoFlowfile, out -> out.write(finalData.getBytes()));
+            logCurveInfoFlowfile = session.putAttribute(logCurveInfoFlowfile, OBJECT_TYPE_ATTRIBUTE, "log curve info");
+            session.transfer(logCurveInfoFlowfile, SUCCESS);
         }
     }
 
-    private void writeMudLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
-        long mudLogHashCode = 0;
-        MudlogRequestTracker mudLogTracker = new MudlogRequestTracker();
+    private void getTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
+        // Get the properties
         String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
-        String mudLogId = null;
-        if (context.getProperty(MUDLOG_ID).evaluateAttributeExpressions(flowFile).getValue() == null) {
+        String trajectoryId = context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
+        String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
+
+        ObjTrajectorys trajectorys = null;
+        trajectorys = witsmlServiceApi.getTrajectoryData(wellId, wellboreId, trajectoryId, startDepth);
+
+        // Something went wrong, route the flowfile to the failure relationship
+        if (trajectorys == null) {
+            session.transfer(flowFile, FAILURE);
             return;
         }
-        mudLogId = context.getProperty(MUDLOG_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
-        long startTime = 0;
-        long currentTime;
-        long timeSpan;
-        while (mudLogId != null && !mudLogId.equals("")) {
-            ObjMudLogs mudLogs = null;
-            mudLogs = witsmlServiceApi.getMudLogData(wellId.toString(),
-                                                     wellboreId.toString(),
-                                                     mudLogId.toString(),
-                                                     mudLogTracker);
-            if (mudLogs != null) {
-                List<CsGeologyInterval> geologyIntervals = mudLogs.getMudLog().get(0).getGeologyInterval();
-                String lastGeologyIntervalUid = geologyIntervals.get(geologyIntervals.size() - 1).getUid();
-                String jsonGeologyInterval = "";
 
-                if (mudLogHashCode != lastGeologyIntervalUid.hashCode()) {
-                    mudLogHashCode = lastGeologyIntervalUid.hashCode();
-                    try {
-                        jsonGeologyInterval = mapper.writeValueAsString(geologyIntervals);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting GeologyInterval to json");
-                    }
-                    if (jsonGeologyInterval != "") {
-                        String finalMudlogData = jsonGeologyInterval;
-                        FlowFile mudLogFlowfile = session.create(flowFile);
-                        if (mudLogFlowfile == null) {
-                            return;
-                        }
-                        try {
-                            mudLogFlowfile = session.write(mudLogFlowfile, new OutputStreamCallback() {
-                                @Override
-                                public void process(OutputStream outputStream) throws IOException {
-                                    outputStream.write(finalMudlogData.toString().getBytes());
-                                }
-                            });
-                            session.transfer(mudLogFlowfile, MUDLOG_SUCCESS);
-                        } catch (ProcessException ex) {
-                            getLogger().error("Error in MudLog data : " + ex);
-                            session.transfer(mudLogFlowfile, MUDLOG_FAILURE);
-                        }
-                    }
-                    startTime = System.currentTimeMillis();
-                    currentTime = 0;
-                    timeSpan = 0;
-                } else {
-                    currentTime = System.currentTimeMillis();
-                    timeSpan = (currentTime - startTime) / 1000;
-                    if (timeSpan >= TIMEOUT) {
-                        break;
-                    }
-                }
-            } else {
-                break;
+        ObjTrajectory targetTrajectory = trajectorys.getTrajectory().get(0);
+
+        List<CsTrajectoryStation> trajectoryStations = targetTrajectory.getTrajectoryStation();
+
+        // Create JSON trajectory station array
+        String jsonTrajectoryStation = "";
+
+        try {
+            jsonTrajectoryStation = mapper.writeValueAsString(trajectoryStations);
+        } catch (JsonProcessingException ex) {
+            getLogger().error("Error in converting TrajectoryStations to Json");
+        }
+        if (!jsonTrajectoryStation.equals("")) {
+            String finalTrajectoryData = jsonTrajectoryStation;
+            FlowFile trajectoryFlowfile = session.create(flowFile);
+            if (trajectoryFlowfile == null) {
+                return;
             }
-        }
-    }
-
-    private void writeTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
-        long trajectoryHashCode = 0;
-        TrajectoryRequestTracker trajectoryTracker = new TrajectoryRequestTracker();
-        String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", "");
-        String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", "");
-        String trajectoryId = null;
-        if (context.getProperty(TRAJECTORY_ID).evaluateAttributeExpressions(flowFile).getValue() == null) {
-            return;
-        }
-        trajectoryId = context.getProperty(TRAJECTORY_ID).evaluateAttributeExpressions(flowFile).getValue().toString().replaceAll("[;\\s\t]", "");
-        long startTime = 0;
-        long currentTime;
-        long timeSpan;
-        while (trajectoryId != null && !trajectoryId.equals("")) {
-            ObjTrajectorys trajectorys = null;
-            trajectorys = witsmlServiceApi.getTrajectoryData(wellId,
-                                                             wellboreId,
-                                                             trajectoryId,
-                                                             trajectoryTracker);
-            if (trajectorys != null) {
-                List<CsTrajectoryStation> trajectoryStations = trajectorys.getTrajectory().get(0).getTrajectoryStation();
-                String lastTrajectoryStationUid = trajectoryStations.get(trajectoryStations.size() - 1).getUid();
-                String jsonTrajectoryStation = "";
-
-                if (trajectoryHashCode != lastTrajectoryStationUid.hashCode()) {
-                    trajectoryHashCode = lastTrajectoryStationUid.hashCode();
-                    try {
-                        jsonTrajectoryStation = mapper.writeValueAsString(trajectoryStations);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting TrajectoryStations to Json");
-                    }
-                    if (jsonTrajectoryStation != "") {
-                        String finalTrajectoryData = jsonTrajectoryStation;
-                        FlowFile trajectoryFlowfile = session.create(flowFile);
-                        if (trajectoryFlowfile == null) {
-                            return;
-                        }
-                        try {
-                            trajectoryFlowfile = session.write(trajectoryFlowfile, new OutputStreamCallback() {
-                                @Override
-                                public void process(OutputStream outputStream) throws IOException {
-                                    outputStream.write(finalTrajectoryData.toString().getBytes());
-                                }
-                            });
-                            session.transfer(trajectoryFlowfile, TRAJECTORY_SUCCESS);
-                        } catch (ProcessException ex) {
-                            getLogger().error("Error in Trajectory Data : " + ex);
-                            session.transfer(trajectoryFlowfile, TRAJECTORY_FAILURE);
-                        }
-                    }
-                    startTime = System.currentTimeMillis();
-                    currentTime = 0;
-                    timeSpan = 0;
-                } else {
-                    currentTime = System.currentTimeMillis();
-                    timeSpan = (currentTime - startTime) / 1000;
-                    if (timeSpan >= TIMEOUT) {
-                        break;
-                    }
-                }
-            } else {
-                break;
+            trajectoryFlowfile = session.write(trajectoryFlowfile, outputStream -> outputStream.write(finalTrajectoryData.getBytes()));
+            trajectoryFlowfile = session.putAttribute(trajectoryFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
+            if (targetTrajectory.isObjectGrowing()){
+                session.transfer(trajectoryFlowfile, PARTIAL);
             }
-        }
-    }
-
-    private void writeObjectData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
-        ObjectRequestTracker objectTracker = new ObjectRequestTracker();
-        String[] objectTypeArray = null;
-        String[] objectIdArray = null;
-        String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue();
-        String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue();
-
-        if (context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(flowFile).getValue() != null && context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue() != null) {
-            objectTypeArray = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "").toUpperCase().split(",");
-            objectIdArray = context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue().replace("[;\\s\t]", "").split(",");
-        }
-
-        if (objectIdArray != null && objectTypeArray != null) {
-            for (int i = 0; i < objectIdArray.length; i++) {
-                if (objectIdArray[i].equals("")) {
-                    continue;
-                }
-                Object object = witsmlServiceApi.getObjectData(wellId.toString(),
-                                                               wellboreId.toString(),
-                                                               objectTypeArray[i], objectIdArray[i], objectTracker);
-
-                if (object != null) {
-                    String jsonObjectData = "";
-                    try {
-                        jsonObjectData = mapper.writeValueAsString(object);
-                    } catch (JsonProcessingException ex) {
-                        getLogger().error("Error in converting Object " + objectTypeArray[i] + " to Json String");
-                    }
-                    if (jsonObjectData != "") {
-                        final String jsonData = jsonObjectData;
-                        FlowFile objectFlowfile = session.create(flowFile);
-                        if (objectFlowfile == null) {
-                            continue;
-                        }
-                        try {
-                            objectFlowfile = session.write(objectFlowfile, new OutputStreamCallback() {
-                                @Override
-                                public void process(OutputStream outputStream) throws IOException {
-                                    outputStream.write(jsonData.getBytes());
-                                }
-                            });
-                            session.transfer(objectFlowfile, OBJECT_SUCCESS);
-                        } catch (ProcessException ex) {
-                            getLogger().error("Error in Object Data : " + ex);
-                            session.transfer(objectFlowfile, OBJECT_FAILURE);
-                        }
-                    }
-                }
-            }
+            session.transfer(trajectoryFlowfile, SUCCESS);
         }
     }
 
@@ -557,5 +365,11 @@ public class GetData extends AbstractProcessor {
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
         mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
+    }
+
+
+    private String getISODate(XMLGregorianCalendar date){
+        return date.getYear() + "-" + date.getMonth() + "-" + date.getDay() + "T" + date.getHour() + ":" + date.getMinute() + ":"
+                + date.getSecond();
     }
 }

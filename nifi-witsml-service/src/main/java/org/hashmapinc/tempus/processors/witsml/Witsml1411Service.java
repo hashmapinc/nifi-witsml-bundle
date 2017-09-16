@@ -149,12 +149,22 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime) {
+        return null;
+    }
+
+    @Override
     public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudLogTracker) {
         mudLogTracker.setVersion(WitsmlVersion.VERSION_1411);
         mudLogTracker.setMudlogId(mudLogId);
         mudLogTracker.initalize(myClient, wellId, wellboreId);
 
         return mudLogTracker.ExecuteRequest();
+    }
+
+    @Override
+    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, String startDepth) {
+        return null;
     }
 
     @Override

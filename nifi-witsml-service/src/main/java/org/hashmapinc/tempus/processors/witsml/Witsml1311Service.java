@@ -1,7 +1,8 @@
 package org.hashmapinc.tempus.processors.witsml;
 
+import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlMarshal;
+import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlVersionTransformer;
 import com.hashmapinc.tempus.WitsmlObjects.v1311.*;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRun;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRuns;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjCementJob;
@@ -53,21 +54,32 @@ import org.apache.nifi.reporting.InitializationException;
 
 import com.hashmapinc.tempus.witsml.client.Client;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import javax.xml.bind.JAXBException;
 import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
 
 /**
  * Created by Chris on 6/2/17.
  */
-@Tags({"WITSML", "Well", "Wellbore", "Log", "Mudlog", "Trajectory", "Version1.3.1.1"})
+@Tags({"WITSML", "Well", "Wellbore", "baseLogQuery", "Mudlog", "Trajectory", "Version1.3.1.1"})
 @CapabilityDescription("Provides session management for Witsml processors")
 public class Witsml1311Service extends AbstractControllerService implements IWitsmlServiceApi {
 
     // Global session variables used by all processors using an instance
     private static Client myClient = null;
+    private String baseLogQuery = "";
+    private String baseTrajQuery = "";
+    private WitsmlVersionTransformer transformer;
 
     //Properties
     public static final PropertyDescriptor ENDPOINT_URL = new PropertyDescriptor
@@ -103,6 +115,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     public Witsml1311Service() throws TransformerConfigurationException {
+        transformer = new WitsmlVersionTransformer();
     }
 
     @Override
@@ -115,9 +128,9 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         final ComponentLog logger = getLogger();
         logger.info("Creating Witsml Client");
 
-        myClient = new Client(context.getProperty(ENDPOINT_URL).getValue().toString());
-        myClient.setUserName(context.getProperty(USERNAME).getValue().toString());
-        myClient.setPassword(context.getProperty(PASSWORD).getValue().toString());
+        myClient = new Client(context.getProperty(ENDPOINT_URL).getValue());
+        myClient.setUserName(context.getProperty(USERNAME).getValue());
+        myClient.setPassword(context.getProperty(PASSWORD).getValue());
         myClient.setVersion(WitsmlVersion.VERSION_1311);
         myClient.connect();
     }
@@ -188,12 +201,126 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime){
+
+        // Create Query
+        String query = "";
+
+        if (startDepth == null)
+            startDepth = "";
+
+        if (startTime == null)
+            startTime = "";
+
+        if (baseLogQuery.equals("")) {
+            try {
+                baseLogQuery = getQuery("/1311/GetLogData.xml");
+            } catch (IOException e) {
+                getLogger().error("Error reading base log query from /1311/GetLogData.xml: in GetData" + e.getMessage());
+            }
+        } else {
+            query = baseLogQuery;
+            query = query.replace("%uidWell%", wellId);
+            query = query.replace("%uidWellbore%", wellboreId);
+            query = query.replace("%uidLog%", logId);
+            query = query.replace("%startIndex%", startDepth);
+            query = query.replace("%startDateTimeIndex%", startTime);
+        }
+
+        // Execute query to the server
+        String returnedLogData = "";
+        getLogger().error(query);
+        try {
+            returnedLogData = myClient.executeLogQuery(query, "","");
+        } catch (RemoteException e) {
+            getLogger().error("Error executing GetFromStoreQuery in getLogData for Witsml1311Service: " + e.getMessage());
+        }
+
+        // Convert to 1.4.1.1 to be able to use the helper methods
+        String convertedLogData = "";
+
+        try {
+            convertedLogData = transformer.convertVersion(returnedLogData);
+        } catch (TransformerException e) {
+            getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
+        }
+        getLogger().error(convertedLogData);
+
+        // Deserialize the object
+        ObjLogs returnedLog = new ObjLogs();
+
+        try {
+            returnedLog = WitsmlMarshal.deserialize(convertedLogData, ObjLogs.class);
+        } catch (JAXBException e) {
+            getLogger().error("Could not deserialize object in getLogData for the Witsml1311Service: " + e.getMessage());
+        }
+
+        return returnedLog;
+    }
+
+    private String getQuery(String resourcePath) throws IOException {
+        InputStream stream = getClass().getResourceAsStream(resourcePath);
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream));
+        return reader.lines().collect(Collectors.joining(
+                System.getProperty("line.separator")));
+    }
+
+    @Override
     public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudLogTracker) {
         mudLogTracker.setVersion(WitsmlVersion.VERSION_1311);
         mudLogTracker.setMudlogId(mudLogId);
         mudLogTracker.initalize(myClient, wellId, wellboreId);
 
         return mudLogTracker.ExecuteRequest();
+    }
+
+    @Override
+    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, String startDepth) {
+        // Create Query
+        String query = "";
+        if (baseTrajQuery.equals("")) {
+            try {
+                baseTrajQuery = getQuery("/1311/GetTrajectoryData.xml");
+            } catch (IOException e) {
+                getLogger().error("Error reading base log query from /1311/GetLogData.xml: in GetData" + e.getMessage());
+            }
+        } else {
+            query = baseTrajQuery;
+            query = query.replace("%uidWell%", wellId);
+            query = query.replace("%uidWellbore%", wellboreId);
+            query = query.replace("%uidTrajectory%", trajectoryId);
+            query = query.replace("%mdMn%", startDepth);
+        }
+
+        // Execute query to the server
+        String returnedTrajectoryData = "";
+
+        try {
+            returnedTrajectoryData = myClient.executeTrajectoryQuery(query, "","");
+        } catch (RemoteException e) {
+            getLogger().error("Error executing GetFromStoreQuery in getTrajectoryData for Witsml1311Service: " + e.getMessage());
+        }
+
+        // Convert to 1.4.1.1 to be able to use the helper methods
+        String convertedTrajectoryData = "";
+
+        try {
+            convertedTrajectoryData = transformer.convertVersion(returnedTrajectoryData);
+        } catch (TransformerException e) {
+            getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
+        }
+
+        // Deserialize the object
+        ObjTrajectorys returnedTrajectory = new ObjTrajectorys();
+
+        try {
+            returnedTrajectory = WitsmlMarshal.deserialize(convertedTrajectoryData, ObjTrajectorys.class);
+        } catch (JAXBException e) {
+            getLogger().error("Could not deserialize object in getTrajectoryData for the Witsml1311Service: " + e.getMessage());
+        }
+
+        return returnedTrajectory;
     }
 
     @Override
