@@ -139,6 +139,8 @@ public class ListObjects extends AbstractProcessor {
         if (file == null)
             file = session.create();
 
+        session.putAttribute(file, "mime.type", "application/json");
+
         String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
 
         String uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions(file).getValue();
@@ -154,22 +156,12 @@ public class ListObjects extends AbstractProcessor {
 
         final String jsonData = data;
 
-        try {
-            file = session.write(file, new OutputStreamCallback() {
-                @Override
-                public void process(OutputStream out) throws IOException {
-                    out.write(jsonData.getBytes());
-                }
-            });
-            session.transfer(file, SUCCESS);
-        } catch (ProcessException ex) {
-            session.transfer(file, FAILURE);
-            logger.error("Unable to Process : " + ex);
-        }
+        file = session.write(file, out -> out.write(jsonData.getBytes()));
+        session.transfer(file, SUCCESS);
     }
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
-        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
+        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"));
     }
 }
