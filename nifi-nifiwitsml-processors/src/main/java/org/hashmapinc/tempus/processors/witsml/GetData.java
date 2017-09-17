@@ -224,6 +224,10 @@ public class GetData extends AbstractProcessor {
 
         // Make the query
         ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime);
+        if (logs.getLog().size() == 0){
+            session.transfer(flowFile, FAILURE);
+            return;
+        }
         ObjLog targetLog = logs.getLog().get(0);
 
         // Get the CSV data
