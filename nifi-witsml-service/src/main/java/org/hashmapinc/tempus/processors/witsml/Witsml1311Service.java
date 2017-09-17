@@ -503,8 +503,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjMessage message : messages.getMessage()) {
                             if (message == null)
                                 continue;
-                            LocalDateTime timeChanged = message.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI, timeChanged));
+                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI, null));
                         }
                         break;
                     case "MUDLOG":
