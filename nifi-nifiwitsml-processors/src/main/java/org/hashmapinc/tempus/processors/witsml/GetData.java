@@ -73,7 +73,6 @@ public class GetData extends AbstractProcessor {
             .displayName("Object Type")
             .description("Specify the type of the object to query for. Must only be trajectory or log.")
             .expressionLanguageSupported(true)
-            .allowableValues("trajectory", "log")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(true)
             .build();
