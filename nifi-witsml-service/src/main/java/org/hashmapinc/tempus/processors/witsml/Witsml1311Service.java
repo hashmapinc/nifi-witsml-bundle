@@ -611,8 +611,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjTrajectory trajectory: trajectorys.getTrajectory()) {
                             if (trajectory == null)
                                 continue;
-                            LocalDateTime timeChanged = trajectory.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, timeChanged));
+                            //LocalDateTime timeChanged = trajectory.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, null));
                         }
                         break;
                     case "TUBULAR":
