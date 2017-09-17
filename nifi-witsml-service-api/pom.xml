@@ -26,7 +26,7 @@
         <dependency>
             <groupId>com.hashmapinc.tempus</groupId>
             <artifactId>witsml-client</artifactId>
-            <version>${witsml.client.version}</version>
+            <version>latest</version>
         </dependency>
     </dependencies>
 

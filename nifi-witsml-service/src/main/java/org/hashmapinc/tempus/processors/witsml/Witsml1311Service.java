@@ -56,6 +56,7 @@ import com.hashmapinc.tempus.witsml.client.Client;
 
 import java.io.*;
 import java.rmi.RemoteException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -354,7 +355,9 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                 for (ObjWell w:wells.getWell()) {
                     if (w == null)
                         continue;
-                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "");
+                    LocalDateTime timeChanged = w.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "", timeChanged);
+
                     ids.add(objId);
                 }
                 break;
@@ -366,7 +369,9 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                 for (ObjWellbore wb:wellbores.getWellbore()){
                     if (wb == null)
                         continue;
-                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")");
+                    LocalDateTime timeChanged = wb.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")", timeChanged);
+
                     ids.add(objId);
                 }
                 break;
@@ -396,7 +401,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for(ObjBhaRun bhaRun: bhaRuns.getBhaRun()) {
                             if (bhaRun == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(bhaRun.getName(), bhaRun.getUid(), "bhaRun", parentURI));
+                            LocalDateTime timeChanged = bhaRun.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(bhaRun.getName(), bhaRun.getUid(), "bhaRun", parentURI, timeChanged));
                         }
                         break;
                     case "CEMENTJOB":
@@ -407,7 +413,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjCementJob cementJob : cementJobs.getCementJob()) {
                             if (cementJob == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(cementJob.getName(), cementJob.getUid(), "cementJob", parentURI));
+                            LocalDateTime timeChanged = cementJob.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(cementJob.getName(), cementJob.getUid(), "cementJob", parentURI, timeChanged));
                         }
                         break;
                     case "CONVCORE":
@@ -419,7 +426,9 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                             if (convCore == null) {
                                 continue;
                             }
-                            ids.add(new WitsmlObjectId(convCore.getName(), convCore.getUid(), "convCore", parentURI));
+
+                            LocalDateTime timeChanged = convCore.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(convCore.getName(), convCore.getUid(), "convCore", parentURI, timeChanged));
                         }
                         break;
                     case "DTSINSTALLEDSYSTEM":
@@ -430,7 +439,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjDtsInstalledSystem dtsInstalledSystem : dtsInstalledSystems.getDtsInstalledSystem()) {
                             if (dtsInstalledSystem == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(dtsInstalledSystem.getName(), dtsInstalledSystem.getUid(), "dtsInstalledSystem", parentURI));
+                            LocalDateTime timeChanged = dtsInstalledSystem.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(dtsInstalledSystem.getName(), dtsInstalledSystem.getUid(), "dtsInstalledSystem", parentURI, timeChanged));
                         }
                         break;
                     case "DTSMEASUREMENT":
@@ -441,7 +451,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjDtsMeasurement dtsMeasurement : dtsMeasurements.getDtsMeasurement()) {
                             if (dtsMeasurement == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(dtsMeasurement.getName(), dtsMeasurement.getUid(), "dtsMeasurement", parentURI));
+                            LocalDateTime timeChanged = dtsMeasurement.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(dtsMeasurement.getName(), dtsMeasurement.getUid(), "dtsMeasurement", parentURI, timeChanged));
                         }
                         break;
                     case "FLUIDREPORT":
@@ -452,7 +463,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjFluidsReport fluidsReport : fluidsReports.getFluidsReport()) {
                             if (fluidsReport == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(fluidsReport.getName(), fluidsReport.getUid(), "fluidsReport", parentURI));
+                            LocalDateTime timeChanged = fluidsReport.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(fluidsReport.getName(), fluidsReport.getUid(), "fluidsReport", parentURI, timeChanged));
                         }
                         break;
                     case "FORMATIONMARKER":
@@ -463,7 +475,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjFormationMarker formationMarker: formationMarkers.getFormationMarker()) {
                             if (formationMarker == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(formationMarker.getName(), formationMarker.getUid(), "formationMarker", parentURI));
+                            LocalDateTime timeChanged = formationMarker.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(formationMarker.getName(), formationMarker.getUid(), "formationMarker", parentURI, timeChanged));
                         }
                         break;
                     case "LOG":
@@ -478,7 +491,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjLog log : logs.getLog()) {
                             if (log == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log", parentURI));
+                            LocalDateTime timeChanged = log.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log", parentURI, timeChanged));
                         }
                         break;
                     case "MESSAGE":
@@ -489,7 +503,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjMessage message : messages.getMessage()) {
                             if (message == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI));
+                            LocalDateTime timeChanged = message.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI, timeChanged));
                         }
                         break;
                     case "MUDLOG":
@@ -500,7 +515,9 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjMudLog mudLog: mudLogs.getMudLog()) {
                             if (mudLog == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(mudLog.getName(), mudLog.getUid(), "mudLog", parentURI));
+
+                            LocalDateTime timeChanged = mudLog.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(mudLog.getName(), mudLog.getUid(), "mudLog", parentURI, timeChanged));
                         }
                         break;
                     case "OPSREPORT":
@@ -511,7 +528,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjOpsReport opsReport: opsReports.getOpsReport()) {
                             if (opsReport == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(opsReport.getName(), opsReport.getUid(), "opsReport", parentURI));
+                            LocalDateTime timeChanged = opsReport.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(opsReport.getName(), opsReport.getUid(), "opsReport", parentURI, timeChanged));
                         }
                         break;
                     case "RIG":
@@ -528,7 +546,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjRig rig : rigs.getRig()) {
                             if (rig == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig", parentURI));
+                            LocalDateTime timeChanged = rig.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig", parentURI, timeChanged));
                         }
                         break;
                     case "RISK":
@@ -539,7 +558,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjRisk risk : risks.getRisk()) {
                             if (risk == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(risk.getName(), risk.getUid(), "risk", parentURI));
+                            LocalDateTime timeChanged = risk.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(risk.getName(), risk.getUid(), "risk", parentURI, timeChanged));
                         }
                         break;
                     case "SIDEWALLCORE":
@@ -550,7 +570,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjSidewallCore sidewallCore : sidewallCores.getSidewallCore()) {
                             if (sidewallCore == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(sidewallCore.getName(), sidewallCore.getUid(), "sidewallCore", parentURI));
+                            LocalDateTime timeChanged = sidewallCore.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(sidewallCore.getName(), sidewallCore.getUid(), "sidewallCore", parentURI, timeChanged));
                         }
                         break;
                     case "SURVEYPROGRAM":
@@ -561,7 +582,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjSurveyProgram surveyProgram: surveyPrograms.getSurveyProgram()) {
                             if (surveyProgram == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(surveyProgram.getName(), surveyProgram.getUid(), "surveyProgram", parentURI));
+                            LocalDateTime timeChanged = surveyProgram.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(surveyProgram.getName(), surveyProgram.getUid(), "surveyProgram", parentURI, timeChanged));
                         }
                         break;
                     case "TARGET":
@@ -572,7 +594,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjTarget target : targets.getTarget()) {
                             if (target == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(target.getName(), target.getUid(), "target", parentURI));
+                            LocalDateTime timeChanged = target.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(target.getName(), target.getUid(), "target", parentURI,timeChanged));
                         }
                         break;
                     case "TRAJECTORY":
@@ -589,7 +612,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjTrajectory trajectory: trajectorys.getTrajectory()) {
                             if (trajectory == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI));
+                            LocalDateTime timeChanged = trajectory.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, timeChanged));
                         }
                         break;
                     case "TUBULAR":
@@ -600,7 +624,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjTubular tubular: tubulars.getTubular()) {
                             if (tubular == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(tubular.getName(), tubular.getUid(), "tubular", parentURI));
+                            LocalDateTime timeChanged = tubular.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(tubular.getName(), tubular.getUid(), "tubular", parentURI, timeChanged));
                         }
                         break;
                     case "WBGEOMETRY":
@@ -611,7 +636,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjWbGeometry wbGeometry: wbGeometrys.getWbGeometry()) {
                             if (wbGeometry == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(wbGeometry.getName(), wbGeometry.getUid(), "wbGeometry", parentURI));
+                            LocalDateTime timeChanged = wbGeometry.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(wbGeometry.getName(), wbGeometry.getUid(), "wbGeometry", parentURI, timeChanged));
                         }
                         break;
                     case "WELLLOG":
@@ -622,7 +648,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjWellLog wellLog : wellLogs.getWellLog()) {
                             if (wellLog == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(wellLog.getName(), wellLog.getUid(), "wellLog", parentURI));
+                            LocalDateTime timeChanged = wellLog.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            ids.add(new WitsmlObjectId(wellLog.getName(), wellLog.getUid(), "wellLog", parentURI, timeChanged));
                         }
                         break;
                     default:

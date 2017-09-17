@@ -17,14 +17,11 @@ import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
-import org.apache.nifi.util.Tuple;
-import org.omg.CORBA.Environment;
-
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -39,7 +36,6 @@ import java.util.*;
 public class ListObjects extends AbstractProcessor {
 
     private static ObjectMapper mapper = new ObjectMapper();
-
 
     public static final PropertyDescriptor WITSML_SERVICE = new PropertyDescriptor
             .Builder().name("WITSML SERVICE")
@@ -150,8 +146,6 @@ public class ListObjects extends AbstractProcessor {
                 logger.error(ex.getMessage());
                 return;
             }
-
-
 
             session.putAttribute(outputFile, "mime.type", "application/json");
 
