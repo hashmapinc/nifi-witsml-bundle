@@ -296,6 +296,8 @@ public class GetData extends AbstractProcessor {
                 jsonLogCurveInfo = mapper.writeValueAsString(logCurveInfos);
             } catch (JsonProcessingException ex) {
                 getLogger().error("Error in converting LogCurveInfo to JSON :" + ex.getMessage());
+                session.transfer(flowFile, FAILURE);
+                return true;
             }
         }
         if (!jsonLogCurveInfo.equals("")) {
@@ -361,7 +363,9 @@ public class GetData extends AbstractProcessor {
             if (targetTrajectory.isObjectGrowing()){
                 session.transfer(trajectoryFlowfile, PARTIAL);
             }
-            session.transfer(trajectoryFlowfile, SUCCESS);
+            else {
+                session.transfer(trajectoryFlowfile, SUCCESS);
+            }
         }
         return false;
     }
