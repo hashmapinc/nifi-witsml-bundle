@@ -185,8 +185,8 @@ public class GetObjects extends AbstractProcessor {
         session.putAttribute(dataFlowFile, "mime.type", "application/json");
 
         if (wellRequested) {
-            ObjWells wells = null;
-            wells = witsmlServiceApi.getWell(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue(), "");
+            com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells wells = null;
+            wells = witsmlServiceApi.getWell1311(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue(), "");
             try {
                 data = mapper.writeValueAsString(wells);
                 if (flatten){
@@ -201,8 +201,8 @@ public class GetObjects extends AbstractProcessor {
             session.transfer(dataFlowFile, SUCCESS);
 
         } else if (wellboreRequested) {
-            ObjWellbores wellbores = null;
-            wellbores = witsmlServiceApi.getWellbore(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue(),
+            com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores wellbores = null;
+            wellbores = witsmlServiceApi.getWellbore1311(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue(),
                                                      context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue());
             try {
                 data = mapper.writeValueAsString(wellbores);
@@ -223,6 +223,10 @@ public class GetObjects extends AbstractProcessor {
                 Object objData = witsmlServiceApi.getObject(context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", ""),
                         context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", ""),
                         object.toUpperCase());
+                if (objData == null){
+                    session.remove(dataFile);
+                    continue;
+                }
                 try {
                     data = mapper.writeValueAsString(objData);
                     if (flatten){

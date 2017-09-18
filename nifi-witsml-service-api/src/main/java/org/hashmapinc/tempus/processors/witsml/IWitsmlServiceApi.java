@@ -28,5 +28,10 @@ public interface IWitsmlServiceApi extends ControllerService {
     List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter);
     Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker);
     ObjWells getWell(String wellId, String status);
+
+    com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells getWell1311(String wellId, String status);
+
     ObjWellbores getWellbore(String wellId, String wellboreId);
+
+    com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores getWellbore1311(String wellId, String wellboreId);
 }

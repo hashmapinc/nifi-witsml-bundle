@@ -512,6 +512,11 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
+    public com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells getWell1311(String wellId, String status) {
+        return null;
+    }
+
+    @Override
     public ObjWellbores getWellbore(String wellId, String wellboreId) {
         ObjWellbores wellbores = null;
         try {
@@ -520,5 +525,10 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
             e.printStackTrace();
         }
         return wellbores;
+    }
+
+    @Override
+    public com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores getWellbore1311(String wellId, String wellboreId) {
+        return null;
     }
 }

@@ -19,6 +19,8 @@ import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -159,7 +161,7 @@ public class ListObjects extends AbstractProcessor {
             String data;
 
             try {
-                if (objects.size() == 0) {
+                if (objects == null) {
                     session.remove(outputFile);
                     if (inputFile != null)
                         session.transfer(inputFile, ORIGINAL);
@@ -174,7 +176,7 @@ public class ListObjects extends AbstractProcessor {
                 return;
             }
 
-            if (data == null) {
+            if (data == null || data.equals("")) {
                 session.remove(outputFile);
                 if (inputFile != null)
                     session.transfer(inputFile, ORIGINAL);
@@ -194,8 +196,11 @@ public class ListObjects extends AbstractProcessor {
             session.transfer(outputFile, SUCCESS);
             if (inputFile != null)
                 session.transfer(inputFile, ORIGINAL);
-        }catch (Exception ex){
-            getLogger().error("Error getting objects in ListObjects" + ex.getMessage() + System.lineSeparator() + ex.getStackTrace());
+        } catch (Exception ex){
+            StringWriter sw = new StringWriter();
+            ex.printStackTrace(new PrintWriter(sw));
+            String exceptionAsString = sw.toString();
+            getLogger().error("Error getting objects in ListObjects " + ex.getClass().getName() + System.lineSeparator() + exceptionAsString);
             session.remove(outputFile);
             if (inputFile != null)
                 session.transfer(inputFile, FAILURE);

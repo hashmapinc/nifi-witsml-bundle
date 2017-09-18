@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 import javax.xml.bind.JAXBException;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
+import javax.xml.transform.stream.StreamSource;
 
 /**
  * Created by Chris on 6/2/17.
@@ -153,16 +154,28 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                     return myClient.getFormationMarkersAsObj(wellId, wellboreId);
                 case "LOG":
                     return myClient.getLogMetadataAsObj(wellId, wellboreId);
-                case "MESSAGE":
-                    return myClient.getMessagesAsObj(wellId, wellboreId);
+                case "MESSAGE": {
+                    if (wellId.equals("")) return null;
+                    if (wellboreId.equals("")) return null;
+                    String messages = myClient.getMessages(wellId, wellboreId);
+                    if (messages == null) return null;
+                    if (messages.equals("")) return null;
+                    return WitsmlMarshal.deserialize(messages, com.hashmapinc.tempus.WitsmlObjects.v1311.ObjMessages.class);
+                }
                 case "MUDLOG":
                     return myClient.getMudLogsAsObj(wellId, wellboreId);
                 case "OPSREPORT":
                     return myClient.getOpsReportsAsObj(wellId, wellboreId);
                 case "REALTIME" :
                     return myClient.getRealtimesAsObj(wellId, wellboreId);
-                case "RIG":
-                    return myClient.getRigsAsObj(wellId, wellboreId);
+                case "RIG": {
+                    if (wellId.equals("")) return null;
+                    if (wellboreId.equals("")) return null;
+                    String rigs =  myClient.getRigs(wellId, wellboreId);
+                    if (rigs == null) return null;
+                    if (rigs.equals("")) return null;
+                    return WitsmlMarshal.deserialize(rigs, com.hashmapinc.tempus.WitsmlObjects.v1311.ObjRigs.class);
+                }
                 case "RISK":
                     return myClient.getRisksAsObj(wellId, wellboreId);
                 case "SIDEWALLCORE":
@@ -171,8 +184,14 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                     return myClient.getSurveyProgramsAsObj(wellId, wellboreId);
                 case "TARGET":
                     return myClient.getTargetsAsObj(wellId, wellboreId);
-                case "TRAJECTORY":
-                    return myClient.getTrajectorysAsObj(wellId, wellboreId);
+                case "TRAJECTORY": {
+                    if (wellId.equals("")) return null;
+                    if (wellboreId.equals("")) return null;
+                    String trajs = myClient.getTrajectorys(wellId, wellboreId);
+                    if (trajs == null) return null;
+                    if (trajs.equals("")) return null;
+                    return WitsmlMarshal.deserialize(trajs, com.hashmapinc.tempus.WitsmlObjects.v1311.ObjTrajectorys.class);
+                }
                 case "TUBULAR":
                     return myClient.getTubularsAsObj(wellId, wellboreId);
                 case "WBGEOMETRY":
@@ -230,12 +249,17 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
 
         // Execute query to the server
         String returnedLogData = "";
-        getLogger().error(query);
         try {
             returnedLogData = myClient.executeLogQuery(query, "","");
         } catch (RemoteException e) {
             getLogger().error("Error executing GetFromStoreQuery in getLogData for Witsml1311Service: " + e.getMessage());
+            return null;
         }
+
+        if (returnedLogData == null)
+            return null;
+        if (returnedLogData.equals(""))
+            return null;
 
         // Convert to 1.4.1.1 to be able to use the helper methods
         String convertedLogData = "";
@@ -244,16 +268,19 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             convertedLogData = transformer.convertVersion(returnedLogData);
         } catch (TransformerException e) {
             getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
+            return null;
         }
-        getLogger().error(convertedLogData);
 
         // Deserialize the object
         ObjLogs returnedLog = new ObjLogs();
 
         try {
+            if (convertedLogData == null) return null;
+            if (convertedLogData.equals("")) return null;
             returnedLog = WitsmlMarshal.deserialize(convertedLogData, ObjLogs.class);
         } catch (JAXBException e) {
             getLogger().error("Could not deserialize object in getLogData for the Witsml1311Service: " + e.getMessage());
+            return null;
         }
 
         return returnedLog;
@@ -301,7 +328,13 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             returnedTrajectoryData = myClient.executeTrajectoryQuery(query, "","");
         } catch (RemoteException e) {
             getLogger().error("Error executing GetFromStoreQuery in getTrajectoryData for Witsml1311Service: " + e.getMessage());
+            return null;
         }
+
+        if (returnedTrajectoryData == null)
+            return null;
+        if (returnedTrajectoryData.equals(""))
+            return null;
 
         // Convert to 1.4.1.1 to be able to use the helper methods
         String convertedTrajectoryData = "";
@@ -310,6 +343,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             convertedTrajectoryData = transformer.convertVersion(returnedTrajectoryData);
         } catch (TransformerException e) {
             getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
+            return null;
         }
 
         // Deserialize the object
@@ -319,6 +353,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             returnedTrajectory = WitsmlMarshal.deserialize(convertedTrajectoryData, ObjTrajectorys.class);
         } catch (JAXBException e) {
             getLogger().error("Could not deserialize object in getTrajectoryData for the Witsml1311Service: " + e.getMessage());
+            return null;
         }
 
         return returnedTrajectory;
@@ -348,14 +383,17 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         List<WitsmlObjectId> ids = new ArrayList<>();
         switch (target.getQueryLevel()){
             case Server: {
-                ObjWells wells = getWell("", wellFilter);
+                com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells wells =
+                        getWell1311("", wellFilter);
 
                 if (wells == null)
                     return null;
-                for (ObjWell w:wells.getWell()) {
+                for (com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWell w:wells.getWell()) {
                     if (w == null)
                         continue;
-                    LocalDateTime timeChanged = w.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                    LocalDateTime timeChanged = null;
+                    if (w.getCommonData() != null)
+                        timeChanged = w.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
                     WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "", timeChanged);
 
                     ids.add(objId);
@@ -363,16 +401,24 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                 break;
             }
             case Well: {
-                ObjWellbores wellbores = getWellboreData(target.getWell());
-                if (wellbores == null)
-                    return null;
-                for (ObjWellbore wb:wellbores.getWellbore()){
-                    if (wb == null)
-                        continue;
-                    LocalDateTime timeChanged = wb.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                    WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")", timeChanged);
+                try {
+                    com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores wellbores =
+                            getWellboreData(target.getWell());
+                    if (wellbores == null)
+                        return null;
+                    for (com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbore wb : wellbores.getWellbore()) {
+                        if (wb == null)
+                            continue;
 
-                    ids.add(objId);
+                        LocalDateTime timeChanged = null;
+                        if (wb.getCommonData() != null)
+                            timeChanged = wb.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                        WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")", timeChanged);
+
+                        ids.add(objId);
+                    }
+                } catch (Exception ex){
+                    getLogger().error("Error in getAvailableObjects: " + ex.getMessage());
                 }
                 break;
             }
@@ -480,10 +526,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         }
                         break;
                     case "LOG":
-                        getLogger().error("**********Getting Log************");
-                        getLogger().error("well id: " + wellId + System.lineSeparator() + "wellbore id: " + wellboreId);
                         ObjLogs logs = myClient.getLogMetadataAsObj(wellId, wellboreId);
-                        getLogger().error("**********Got Log************");
 
                         if (logs == null) {
                             continue;
@@ -496,11 +539,14 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         }
                         break;
                     case "MESSAGE":
-                        ObjMessages messages = myClient.getMessagesAsObj(wellId, wellboreId);
-                        if (messages == null) {
+                        String messageXml = myClient.getMessages(wellId, wellboreId);
+                        if (messageXml == null) {
                             continue;
                         }
-                        for (ObjMessage message : messages.getMessage()) {
+                        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjMessages messages =
+                                WitsmlMarshal.deserialize(messageXml,
+                                        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjMessages.class);
+                        for (com.hashmapinc.tempus.WitsmlObjects.v1311.ObjMessage message : messages.getMessage()) {
                             if (message == null)
                                 continue;
                             ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI, null));
@@ -532,7 +578,11 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         }
                         break;
                     case "RIG":
-                        ObjRigs rigs = myClient.getRigsAsObj(wellId, wellboreId);
+                        String rigsXml = myClient.getRigs(wellId, wellboreId);
+
+                        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjRigs rigs =
+                                WitsmlMarshal.deserialize(rigsXml,
+                                        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjRigs.class);
 
                         if (rigs == null) {
                             continue;
@@ -542,7 +592,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                             continue;
                         }
 
-                        for (ObjRig rig : rigs.getRig()) {
+                        for (com.hashmapinc.tempus.WitsmlObjects.v1311.ObjRig rig : rigs.getRig()) {
                             if (rig == null)
                                 continue;
                             LocalDateTime timeChanged = rig.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
@@ -598,8 +648,10 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         }
                         break;
                     case "TRAJECTORY":
-                        ObjTrajectorys trajectorys = myClient.getTrajectorysAsObj(wellId, wellboreId);
-
+                        String trajectorysXml = myClient.getTrajectorys(wellId, wellboreId);
+                        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjTrajectorys trajectorys =
+                                WitsmlMarshal.deserialize(trajectorysXml,
+                                        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjTrajectorys.class);
                         if (trajectorys == null) {
                             continue;
                         }
@@ -608,7 +660,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                             continue;
                         }
 
-                        for (ObjTrajectory trajectory: trajectorys.getTrajectory()) {
+                        for (com.hashmapinc.tempus.WitsmlObjects.v1311.ObjTrajectory trajectory: trajectorys.getTrajectory()) {
                             if (trajectory == null)
                                 continue;
                             //LocalDateTime timeChanged = trajectory.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
@@ -683,6 +735,19 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
+    public com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells getWell1311(String wellId, String status) {
+        String wellsXml = null;
+        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells wells = null;
+        try {
+            wellsXml = myClient.getWells(wellId, status);
+            wells = WitsmlMarshal.deserialize(wellsXml, com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells.class);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return wells;
+    }
+
+    @Override
     public ObjWellbores getWellbore(String wellId, String wellboreId) {
         ObjWellbores wellbores = null;
         try {
@@ -693,18 +758,24 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         return wellbores;
     }
 
-    private ObjWells getWellData(){
+    @Override
+    public com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores getWellbore1311(String wellId, String wellboreId) {
+        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores wellbores = null;
+
         try {
-            return myClient.getWellsAsObj();
+            String wellboresXml = myClient.getWellboresForWell(wellId, wellboreId);
+            wellbores = WitsmlMarshal.deserialize(wellboresXml,
+                    com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores.class);
         } catch (Exception e) {
-            getLogger().error("Error in getWells: " + e.getMessage());
-            return null;
+            e.printStackTrace();
         }
+        return wellbores;
     }
 
-    private ObjWellbores getWellboreData(WitsmlObjectId well){
+    private com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores getWellboreData(WitsmlObjectId well){
         try {
-            return myClient.getWellboresForWellAsObj(well.getId());
+            String wellbores =  myClient.getWellboresForWell(well.getId());
+            return WitsmlMarshal.deserialize(wellbores, com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWellbores.class);
         } catch (Exception e) {
             getLogger().error("Error in getWellbores: " + e.getMessage());
             return null;

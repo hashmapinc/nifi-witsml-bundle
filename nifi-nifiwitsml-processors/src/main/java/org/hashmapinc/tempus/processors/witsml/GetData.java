@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
@@ -24,6 +25,8 @@ import org.json.JSONObject;
 
 
 import javax.xml.datatype.XMLGregorianCalendar;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -191,29 +194,29 @@ public class GetData extends AbstractProcessor {
             flowFile = session.create();
         }
 
-        processData(context, session, witsmlServiceApi, flowFile);
+        boolean flowFileHandled = processData(context, session, witsmlServiceApi, flowFile);
 
-        session.remove(flowFile);
+        if (!flowFileHandled)
+            session.remove(flowFile);
     }
 
-    private void processData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile parentFlowFile){
-
+    // returns a value of whether the incoming flowfile was processed.
+    private boolean processData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile parentFlowFile){
         String queryType = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(parentFlowFile).getValue();
-        switch (queryType){
-            case "log":{
-                getLogData(context, session, witsmlServiceApi, parentFlowFile);
-                break;
+        switch (queryType) {
+            case "log": {
+                return getLogData(context, session, witsmlServiceApi, parentFlowFile);
             }
-            case "trajectory":{
-                getTrajectoryData(context, session, witsmlServiceApi, parentFlowFile);
+            case "trajectory": {
+                return getTrajectoryData(context, session, witsmlServiceApi, parentFlowFile);
             }
-            default:{
-
+            default: {
+                return false;
             }
         }
     }
 
-    private void getLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
+    private boolean getLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
         String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
 
@@ -224,10 +227,16 @@ public class GetData extends AbstractProcessor {
 
         // Make the query
         ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime);
+        if (logs == null){
+            session.transfer(flowFile, FAILURE);
+            return true;
+        }
+
         if (logs.getLog().size() == 0){
             session.transfer(flowFile, FAILURE);
-            return;
+            return true;
         }
+
         ObjLog targetLog = logs.getLog().get(0);
 
         // Get the CSV data
@@ -242,7 +251,8 @@ public class GetData extends AbstractProcessor {
         FlowFile logDataFlowfile = session.create(flowFile);
 
         if (logDataFlowfile == null) {
-            return;
+            session.transfer(flowFile, FAILURE);
+            return true;
         }
 
         // The final data to write to the flow file
@@ -273,10 +283,10 @@ public class GetData extends AbstractProcessor {
         else
             session.transfer(logDataFlowfile, SUCCESS);
 
-        getLogCurveInfos(session, targetLog, flowFile);
+        return getLogCurveInfos(session, targetLog, flowFile);
     }
 
-    private void getLogCurveInfos(ProcessSession session, ObjLog targetLog, FlowFile flowFile){
+    private boolean getLogCurveInfos(ProcessSession session, ObjLog targetLog, FlowFile flowFile){
         List<CsLogCurveInfo> logCurveInfos = targetLog.getLogCurveInfo();
 
         String jsonLogCurveInfo = "";
@@ -292,15 +302,17 @@ public class GetData extends AbstractProcessor {
             String finalData = jsonLogCurveInfo;
             FlowFile logCurveInfoFlowfile = session.create(flowFile);
             if (logCurveInfoFlowfile == null) {
-                return;
+                session.transfer(flowFile, FAILURE);
+                return true;
             }
             logCurveInfoFlowfile = session.write(logCurveInfoFlowfile, out -> out.write(finalData.getBytes()));
             logCurveInfoFlowfile = session.putAttribute(logCurveInfoFlowfile, OBJECT_TYPE_ATTRIBUTE, "log curve info");
             session.transfer(logCurveInfoFlowfile, SUCCESS);
         }
+        return false;
     }
 
-    private void getTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
+    private boolean getTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
         // Get the properties
         String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
@@ -308,14 +320,23 @@ public class GetData extends AbstractProcessor {
         String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
 
         ObjTrajectorys trajectorys = null;
+        if (startDepth == null)
+            startDepth = "";
+        if (trajectoryId == null) {
+            session.transfer(flowFile, FAILURE);
+            return true;
+        }
         trajectorys = witsmlServiceApi.getTrajectoryData(wellId, wellboreId, trajectoryId, startDepth);
 
         // Something went wrong, route the flowfile to the failure relationship
         if (trajectorys == null) {
             session.transfer(flowFile, FAILURE);
-            return;
+            return true;
         }
-
+        if (trajectorys.getTrajectory().size() == 0){
+            session.transfer(flowFile, FAILURE);
+            return true;
+        }
         ObjTrajectory targetTrajectory = trajectorys.getTrajectory().get(0);
 
         List<CsTrajectoryStation> trajectoryStations = targetTrajectory.getTrajectoryStation();
@@ -332,7 +353,8 @@ public class GetData extends AbstractProcessor {
             String finalTrajectoryData = jsonTrajectoryStation;
             FlowFile trajectoryFlowfile = session.create(flowFile);
             if (trajectoryFlowfile == null) {
-                return;
+                session.transfer(flowFile, FAILURE);
+                return true;
             }
             trajectoryFlowfile = session.write(trajectoryFlowfile, outputStream -> outputStream.write(finalTrajectoryData.getBytes()));
             trajectoryFlowfile = session.putAttribute(trajectoryFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
@@ -341,6 +363,7 @@ public class GetData extends AbstractProcessor {
             }
             session.transfer(trajectoryFlowfile, SUCCESS);
         }
+        return false;
     }
 
     private String convertLogDataToJson(String logData, String logId) {
@@ -369,7 +392,6 @@ public class GetData extends AbstractProcessor {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
         mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
     }
-
 
     private String getISODate(XMLGregorianCalendar date){
         return date.getYear() + "-" + date.getMonth() + "-" + date.getDay() + "T" + date.getHour() + ":" + date.getMinute() + ":"
