@@ -15,3 +15,4 @@
 org.hashmapinc.tempus.processors.witsml.GetObjects
 org.hashmapinc.tempus.processors.witsml.GetData
 org.hashmapinc.tempus.processors.witsml.ListObjects
+org.hashmapinc.tempus.processors.witsml.GetObjectMetadata

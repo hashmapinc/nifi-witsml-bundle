@@ -3,15 +3,14 @@ package org.hashmapinc.tempus.processors.witsml;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hashmapinc.tempus.WitsmlObjects.Util.log.AbstractDataTrace;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
-import org.apache.commons.lang3.ObjectUtils;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
 import org.apache.nifi.annotation.behavior.WritesAttributes;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
-import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
@@ -23,11 +22,10 @@ import org.apache.nifi.processor.util.StandardValidators;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-
 import javax.xml.datatype.XMLGregorianCalendar;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.text.SimpleDateFormat;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -35,7 +33,6 @@ import java.util.*;
  */
 @Tags({"WITSML", "LOG", "MUDLOG", "TRAJECTORY"})
 @CapabilityDescription("Get Data from Witsml Server for Objects Log, Mudlog and Trajectory.")
-@SeeAlso({})
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
 @WritesAttributes({
         @WritesAttribute(attribute="object.type", description="The WITSML type of the object being returned"),
@@ -74,7 +71,7 @@ public class GetData extends AbstractProcessor {
     public static final PropertyDescriptor OBJECT_TYPE = new PropertyDescriptor
             .Builder().name("OBJECT TYPE")
             .displayName("Object Type")
-            .description("Specify the type of the object to query for. Must only be trajectory or log.")
+            .description("Specify the type of the object to query for. Must only be trajectory or logData or logMetadata.")
             .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(true)
@@ -84,6 +81,15 @@ public class GetData extends AbstractProcessor {
             .Builder().name("OBJECT ID")
             .displayName("Object ID")
             .description("Specify the Object Id")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .required(true)
+            .build();
+
+    public static final PropertyDescriptor INDEX_TYPE = new PropertyDescriptor
+            .Builder().name("INDEX TYPE")
+            .displayName("Index Type")
+            .description("The index type of the object.")
             .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(true)
@@ -105,6 +111,22 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor QUERY_END_DEPTH = new PropertyDescriptor
+            .Builder().name("QUERY END DEPTH")
+            .displayName("Query End Depth")
+            .description("The depth at which to end the query at.")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
+    public static final PropertyDescriptor QUERY_END_TIME = new PropertyDescriptor
+            .Builder().name("QUERY END TIME")
+            .displayName("Query End Time")
+            .description("The time at which to end the query at.")
+            .expressionLanguageSupported(true)
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
     public static final PropertyDescriptor LOG_DATA_FORMAT = new PropertyDescriptor
             .Builder().name("LOG DATA FORMAT")
             .displayName("Log Data Format")
@@ -112,6 +134,16 @@ public class GetData extends AbstractProcessor {
             .allowableValues("JSON", "CSV")
             .required(true)
             .defaultValue("JSON")
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
+    public static final PropertyDescriptor REQUERY_INDICATOR = new PropertyDescriptor
+            .Builder().name("REQUERY INDICATOR")
+            .displayName("Re-query Indicator")
+            .description("The mechanism to use to determine whether all of the data has been received or not")
+            .allowableValues("OBJECT_GROWING", "MAX_INDEX", "BATCH_INDEX")
+            .required(true)
+            .defaultValue("OBJECT_GROWING")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -147,6 +179,12 @@ public class GetData extends AbstractProcessor {
         descriptors.add(OBJECT_ID);
         descriptors.add(LOG_DATA_FORMAT);
         descriptors.add(OBJECT_TYPE);
+        descriptors.add(REQUERY_INDICATOR);
+        descriptors.add(QUERY_START_TIME);
+        descriptors.add(QUERY_START_DEPTH);
+        descriptors.add(QUERY_END_TIME);
+        descriptors.add(QUERY_END_DEPTH);
+        descriptors.add(INDEX_TYPE);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<>();
@@ -224,27 +262,46 @@ public class GetData extends AbstractProcessor {
         String logId = context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String startTime = context.getProperty(QUERY_START_TIME).evaluateAttributeExpressions(flowFile).getValue();
         String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
+        String endDepth = context.getProperty(QUERY_END_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
+        String endTime = context.getProperty(QUERY_END_TIME).evaluateAttributeExpressions(flowFile).getValue();
+        String timeZone = flowFile.getAttribute("timeZone");
+
+        if (endDepth == null)
+            endDepth = "";
 
         // Make the query
-        ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime);
+        ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime, endTime, endDepth, timeZone);
         if (logs == null){
             session.transfer(flowFile, FAILURE);
             return true;
         }
 
+        String endBatchTime = flowFile.getAttribute("endBatchTime");
+
         if (logs.getLog().size() == 0){
             session.transfer(flowFile, FAILURE);
-            return true;
+             return true;
         }
 
         ObjLog targetLog = logs.getLog().get(0);
 
-        // Get the CSV data
-        String logData = LogDataHelper.getCSV(logs.getLog().get(0), true);
+
+        String result = "";
 
         // Determine if we have to convert to JSON
         if (context.getProperty(LOG_DATA_FORMAT).getValue().equals("JSON")) {
-            logData = convertLogDataToJson(logData, logId);
+            List<AbstractDataTrace> process = LogDataHelper.processData(logs);
+            ObjectMapper mapper = new ObjectMapper();
+
+            try {
+                result = mapper.writeValueAsString(process);
+            } catch (JsonProcessingException e) {
+                e.printStackTrace();
+            }
+        }
+        else {
+            // Get the CSV data
+            result = LogDataHelper.getCSV(logs.getLog().get(0), true);
         }
 
         // Create the new flowfile
@@ -256,34 +313,65 @@ public class GetData extends AbstractProcessor {
         }
 
         // The final data to write to the flow file
-        final String logDataToWrite = logData;
+        final String logDataToWrite = result;
 
         // Write the flowfile data
         logDataFlowfile = session.write(logDataFlowfile, out -> out.write(logDataToWrite.getBytes()));
 
+        String indexType = flowFile.getAttribute("indexType");
+
         // Set attributes
         String objectType = "depth";
-        if (targetLog.getIndexType().equals(LogIndexType.DATE_TIME)){
+        if (indexType.toLowerCase().contains("time")){
             objectType = "date time";
         }
 
+        String requeryIndicator = context.getProperty(REQUERY_INDICATOR).getValue();
+
         // Determine where to route the data
         logDataFlowfile = session.putAttribute(logDataFlowfile, OBJECT_TYPE_ATTRIBUTE, objectType);
-        if (targetLog.isObjectGrowing()){
+        if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endBatchTime, timeZone)){
             if (objectType.equals("depth")) {
                 logDataFlowfile = session.putAttribute(logDataFlowfile,
                         NEXT_QUERY_DEPTH_ATTRIBUTE, Double.toString(targetLog.getEndIndex().getValue()));
             }
             else {
                     logDataFlowfile = session.putAttribute(logDataFlowfile,
-                            NEXT_QUERY_TIME_ATTRIBUTE, getISODate(targetLog.getEndDateTimeIndex()));
+                            NEXT_QUERY_TIME_ATTRIBUTE, getISODate(targetLog.getEndDateTimeIndex(), timeZone));
             }
             session.transfer(logDataFlowfile, PARTIAL);
         }
         else
             session.transfer(logDataFlowfile, SUCCESS);
 
-        return getLogCurveInfos(session, targetLog, flowFile);
+        return false;
+    }
+
+    private boolean isLogGrowing(ObjLog targetLog, String requeryIndicator, String logResponseMax, String endBatchIndex, String timeZone){
+        if (requeryIndicator.equals("OBJECT_GROWING")){
+            return targetLog.isObjectGrowing();
+        } else if (requeryIndicator.equals("MAX_INDEX")){
+            LogIndexType logType = targetLog.getIndexType();
+            if (logType == LogIndexType.DATE_TIME || logType == LogIndexType.ELAPSED_TIME){
+                long logMaxMilli = iso8601toMillis(logResponseMax);
+                long currentLogMax = iso8601toMillis(getISODate(targetLog.getEndDateTimeIndex(), timeZone));
+                return (!(logMaxMilli <= currentLogMax));
+            } else{
+                return (!logResponseMax.equals(Double.toString(targetLog.getEndIndex().getValue())));
+            }
+        } else if(requeryIndicator.equals("BATCH_INDEX")){
+            long logMaxMilli = iso8601toMillis(endBatchIndex);
+            long currentLogMax = iso8601toMillis(logResponseMax);
+            return (!(logMaxMilli <= currentLogMax));
+        }
+        return false;
+    }
+
+
+    private long iso8601toMillis(String input){
+        ZonedDateTime time = ZonedDateTime.parse("2014-11-17T23:59:59.000-0600",
+                DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        return time.getSecond()*1000;
     }
 
     private boolean getLogCurveInfos(ProcessSession session, ObjLog targetLog, FlowFile flowFile){
@@ -321,7 +409,7 @@ public class GetData extends AbstractProcessor {
         String trajectoryId = context.getProperty(OBJECT_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
 
-        ObjTrajectorys trajectorys = null;
+        ObjTrajectorys trajectorys;
         if (startDepth == null)
             startDepth = "";
         if (trajectoryId == null) {
@@ -397,8 +485,10 @@ public class GetData extends AbstractProcessor {
         mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
     }
 
-    private String getISODate(XMLGregorianCalendar date){
-        return date.getYear() + "-" + date.getMonth() + "-" + date.getDay() + "T" + date.getHour() + ":" + date.getMinute() + ":"
-                + date.getSecond();
+    private String getISODate(XMLGregorianCalendar date, String timeZone){
+        return String.format("%04d", date.getYear()) + "-" + String.format("%02d", date.getMonth()) + "-" +
+                String.format("%02d", date.getDay()) + "T" + String.format("%02d", date.getHour()) + ":" +
+                String.format("%02d", date.getMinute()) + ":" + String.format("%02d", date.getSecond()) + "." +
+                String.format("%03d", date.getMillisecond()) + timeZone;
     }
 }
