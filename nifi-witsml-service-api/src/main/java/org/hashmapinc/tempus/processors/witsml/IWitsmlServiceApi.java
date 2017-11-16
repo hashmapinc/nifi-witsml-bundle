@@ -21,14 +21,15 @@ import java.util.List;
 public interface IWitsmlServiceApi extends ControllerService {
     Object getObject(String wellId, String wellboreId, String object);
     ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker);
-    ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime);
+    ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone);
     ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudlogTracker);
     ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, String startDepth);
     ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, TrajectoryRequestTracker trajectoryTracker);
     List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter);
     Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker);
     ObjWells getWell(String wellId, String status);
-
+    LogMetadataInfo getLogMetaData(String wellId, String wellboreId, String logId);
+    String getUrl();
     com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells getWell1311(String wellId, String status);
 
     ObjWellbores getWellbore(String wellId, String wellboreId);

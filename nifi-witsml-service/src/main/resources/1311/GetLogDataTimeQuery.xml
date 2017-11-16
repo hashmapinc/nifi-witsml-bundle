@@ -1,14 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <logs version="1.3.1.1" xmlns="http://www.witsml.org/schemas/131">
-    <log uidWell="%uidWell%" uidWellbore="%uidWellbore%" uid="%uidLog%">
+    <log uidWell="%uidWell%" uidWellbore="R9585" uid="R9585HF1">
         <nameWell />
         <nameWellbore />
         <name />
         <objectGrowing />
-        <startIndex uom="">%startIndex%</startIndex>
-        <endIndex uom="">%endIndex%</endIndex>
-        <startDateTimeIndex>%startDateTimeIndex%</startDateTimeIndex>
-        <endDateTimeIndex>%endDateTimeIndex%</endDateTimeIndex>
+        <startDateTimeIndex>2014-10-17T00:00:01.000</startDateTimeIndex>
+        <endDateTimeIndex>2014-11-17T23:59:59.000</endDateTimeIndex>
         <logCurveInfo uid="">
             <mnemonic />
             <classWitsml />

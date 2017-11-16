@@ -139,6 +139,12 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         return null;
     }
 
+
+    @Override
+    public String getUrl() {
+        return myClient.getUrl();
+    }
+
     @Override
     public ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker) {
         logTracker.setVersion(WitsmlVersion.VERSION_1411);
@@ -149,7 +155,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime) {
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone) {
         return null;
     }
 
@@ -509,6 +515,11 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
             e.printStackTrace();
         }
         return wells;
+    }
+
+    @Override
+    public LogMetadataInfo getLogMetaData(String wellId, String wellboreId, String logId) {
+        return null;
     }
 
     @Override

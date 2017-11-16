@@ -1,5 +1,8 @@
 package org.hashmapinc.tempus.processors.witsml;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlMarshal;
 import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlVersionTransformer;
 import com.hashmapinc.tempus.WitsmlObjects.v1311.*;
@@ -15,14 +18,10 @@ import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarker;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarkers;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLog;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMessage;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMessages;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLog;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLogs;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReport;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReports;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRig;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRigs;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisk;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisks;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSidewallCore;
@@ -31,17 +30,15 @@ import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyProgram;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyPrograms;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTarget;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTargets;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectory;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectorys;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubular;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubulars;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometry;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometrys;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWell;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbore;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbores;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWells;
 import com.hashmapinc.tempus.witsml.api.*;
+import com.hashmapinc.tempus.witsml.client.Client;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
@@ -52,20 +49,17 @@ import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.InitializationException;
 
-import com.hashmapinc.tempus.witsml.client.Client;
-
+import javax.xml.bind.JAXBException;
+import javax.xml.transform.TransformerException;
 import java.io.*;
 import java.rmi.RemoteException;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import javax.xml.bind.JAXBException;
-import javax.xml.transform.TransformerConfigurationException;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.stream.StreamSource;
 
 /**
  * Created by Chris on 6/2/17.
@@ -75,10 +69,10 @@ import javax.xml.transform.stream.StreamSource;
 public class Witsml1311Service extends AbstractControllerService implements IWitsmlServiceApi {
 
     // Global session variables used by all processors using an instance
-    private static Client myClient = null;
+    private Client myClient = null;
     private String baseLogQuery = "";
+    private String baseLogMetadataQuery = "";
     private String baseTrajQuery = "";
-    private WitsmlVersionTransformer transformer;
 
     //Properties
     public static final PropertyDescriptor ENDPOINT_URL = new PropertyDescriptor
@@ -111,10 +105,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         props.add(USERNAME);
         props.add(PASSWORD);
         properties = Collections.unmodifiableList(props);
-    }
-
-    public Witsml1311Service() throws TransformerConfigurationException {
-        transformer = new WitsmlVersionTransformer();
     }
 
     @Override
@@ -221,7 +211,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime){
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone){
 
         // Create Query
         String query = "";
@@ -234,18 +224,20 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
 
         if (baseLogQuery.equals("")) {
             try {
-                baseLogQuery = getQuery("/1311/GetLogData.xml");
+                baseLogQuery = getQuery("/1311/GetLogDataQuery.xml");
             } catch (IOException e) {
                 getLogger().error("Error reading base log query from /1311/GetLogData.xml: in GetData" + e.getMessage());
             }
-        } else {
-            query = baseLogQuery;
-            query = query.replace("%uidWell%", wellId);
-            query = query.replace("%uidWellbore%", wellboreId);
-            query = query.replace("%uidLog%", logId);
-            query = query.replace("%startIndex%", startDepth);
-            query = query.replace("%startDateTimeIndex%", startTime);
         }
+
+        query = baseLogQuery;
+        query = query.replace("%uidWell%", wellId);
+        query = query.replace("%uidWellbore%", wellboreId);
+        query = query.replace("%uidLog%", logId);
+        query = query.replace("%startIndex%", startDepth);
+        query = query.replace("%startDateTimeIndex%", removeTimeZone(startTime));
+        query = query.replace("%endDateTimeIndex%", removeTimeZone(endTime));
+        query = query.replace("%endIndex%", endDepth);
 
         // Execute query to the server
         String returnedLogData = "";
@@ -265,6 +257,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         String convertedLogData = "";
 
         try {
+            WitsmlVersionTransformer transformer = new WitsmlVersionTransformer();
             convertedLogData = transformer.convertVersion(returnedLogData);
         } catch (TransformerException e) {
             getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
@@ -284,6 +277,11 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         }
 
         return returnedLog;
+    }
+
+    private String removeTimeZone(String timeStamp){
+        ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+        return zdt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
     }
 
     private String getQuery(String resourcePath) throws IOException {
@@ -340,6 +338,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         String convertedTrajectoryData = "";
 
         try {
+            WitsmlVersionTransformer transformer = new WitsmlVersionTransformer();
             convertedTrajectoryData = transformer.convertVersion(returnedTrajectoryData);
         } catch (TransformerException e) {
             getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
@@ -735,6 +734,67 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
+    public LogMetadataInfo getLogMetaData(String wellId, String wellboreId, String logId) {
+        String query = "";
+        if (baseLogMetadataQuery.equals("")) {
+            try {
+                baseLogMetadataQuery = getQuery("/1311/GetLogMetadataQuery.xml");
+            } catch (IOException e) {
+                getLogger().error("Error reading base log query from /1311/GetLogMetadataQuery.xml: in getLogMetaData" + e.getMessage());
+            }
+        }
+
+        query = baseLogMetadataQuery;
+        query = query.replace("%uidWell%", wellId);
+        query = query.replace("%uidWellbore%", wellboreId);
+        query = query.replace("%uid%", logId);
+
+
+        String result = "";
+        try {
+            result = myClient.executeLogQuery(query, "", "");
+        } catch (RemoteException e) {
+            getLogger().error("Error querying server for log metadata. " + e.getMessage());
+        }
+
+        if (result.equals(""))
+            return null;
+
+        com.hashmapinc.tempus.WitsmlObjects.v1311.ObjLogs logs = null;
+
+        try {
+            logs = WitsmlMarshal.deserialize(result, com.hashmapinc.tempus.WitsmlObjects.v1311.ObjLogs.class);
+        } catch (JAXBException e) {
+            getLogger().error("Error deserialing log metadata response from server. " + e.getMessage());
+            return null;
+        }
+        LogMetadataInfo info = new LogMetadataInfo();
+        int zone = (logs.getLog().get(0).getStartDateTimeIndex().getTimezone());
+
+        getLogger().debug(getTimeZone(zone));
+        info.timeZone = getTimeZone(zone);
+
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.setDateFormat(WitsmlConstants.getSimpleDateTimeFormat(info.timeZone));
+        String jsonResult = null;
+
+        try {
+            jsonResult = mapper.writeValueAsString(logs);
+        } catch (JsonProcessingException e) {
+            getLogger().error("Error serializing log metadata to JSON. " + e.getMessage());
+        }
+
+        info.metadata = jsonResult;
+        return info;
+    }
+
+    @Override
+    public String getUrl() {
+        return myClient.getUrl();
+    }
+
+    @Override
     public com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells getWell1311(String wellId, String status) {
         String wellsXml = null;
         com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells wells = null;
@@ -745,6 +805,22 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             e.printStackTrace();
         }
         return wells;
+    }
+
+    private String getTimeZone(int timeZoneMinutesOffset){
+
+        float hoursOffset = timeZoneMinutesOffset / 60;
+
+        float partialHour = hoursOffset % 1;
+
+        String hours = ((hoursOffset < 0) ? "-" : "") + String.format("%02d", Math.abs((int)hoursOffset));
+
+        if (partialHour == 0){
+            return hours + ":00";
+        } else {
+            String minutes = String.format("%02f", (60 * partialHour));
+            return hours + ":" + minutes;
+        }
     }
 
     @Override

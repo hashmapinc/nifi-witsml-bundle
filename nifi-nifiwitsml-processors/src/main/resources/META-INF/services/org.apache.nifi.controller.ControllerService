@@ -14,3 +14,4 @@
 # limitations under the License.
 org.hashmapinc.tempus.processors.witsml.Witsml1311Service
 org.hashmapinc.tempus.processors.witsml.Witsml1411Service
+org.hashmapinc.tempus.processors.witsml.StatsDReportingController
