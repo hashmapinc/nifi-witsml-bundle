@@ -139,6 +139,12 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
         return null;
     }
 
+
+    @Override
+    public String getUrl() {
+        return myClient.getUrl();
+    }
+
     @Override
     public ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker) {
         logTracker.setVersion(WitsmlVersion.VERSION_1411);

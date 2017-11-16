@@ -19,25 +19,30 @@ import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.apache.nifi.util.StopWatch;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.xml.datatype.XMLGregorianCalendar;
 import java.text.SimpleDateFormat;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by Chris on 6/2/17.
  */
 @Tags({"WITSML", "LOG", "MUDLOG", "TRAJECTORY"})
 @CapabilityDescription("Get Data from Witsml Server for Objects Log, Mudlog and Trajectory.")
-@ReadsAttributes({@ReadsAttribute(attribute="", description="")})
+@ReadsAttributes({
+        @ReadsAttribute(attribute="last.query.time", description="The time at which to end the query for the batch (upper limit for the index in the query")})
 @WritesAttributes({
         @WritesAttribute(attribute="object.type", description="The WITSML type of the object being returned"),
         @WritesAttribute(attribute="next.query.depth", description="The depth to start the next query"),
-        @WritesAttribute(attribute="next.query.time", description="The time to start the next query")})
+        @WritesAttribute(attribute="next.query.time", description="The time to start the next query"),
+        @WritesAttribute(attribute = "batch.order", description = "The monotonically increasing id that orders the data")})
 public class GetData extends AbstractProcessor {
 
     private static ObjectMapper mapper = new ObjectMapper();
@@ -147,6 +152,14 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor REPORTING_SERVICE = new PropertyDescriptor
+            .Builder().name("REPORTING SERVICE")
+            .displayName("Reporting Service")
+            .description("The controller service used to report WITSML Server metrics.")
+            .required(false)
+            .identifiesControllerService(IStatsDReportingController.class)
+            .build();
+
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Object Data successfully received from the server")
@@ -165,6 +178,7 @@ public class GetData extends AbstractProcessor {
     public static final String OBJECT_TYPE_ATTRIBUTE = "object.type";
     public static final String NEXT_QUERY_DEPTH_ATTRIBUTE = "next.query.depth";
     public static final String NEXT_QUERY_TIME_ATTRIBUTE = "next.query.time";
+    public static final String BATCH_ORDER = "batch.order";
 
     private List<PropertyDescriptor> descriptors;
 
@@ -185,6 +199,7 @@ public class GetData extends AbstractProcessor {
         descriptors.add(QUERY_END_TIME);
         descriptors.add(QUERY_END_DEPTH);
         descriptors.add(INDEX_TYPE);
+        descriptors.add(REPORTING_SERVICE);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<>();
@@ -224,6 +239,16 @@ public class GetData extends AbstractProcessor {
             return;
         }
 
+        IStatsDReportingController reportingService = null;
+
+        boolean reporting = true;
+        // Get the Witsml Controller Service
+        try {
+            reportingService = context.getProperty(REPORTING_SERVICE).asControllerService(IStatsDReportingController.class);
+        } catch (Exception ex) {
+            reporting = false;
+        }
+
         // Gets the incoming flowfile
         FlowFile flowFile = session.get();
 
@@ -232,18 +257,18 @@ public class GetData extends AbstractProcessor {
             flowFile = session.create();
         }
 
-        boolean flowFileHandled = processData(context, session, witsmlServiceApi, flowFile);
+        boolean flowFileHandled = processData(context, session, witsmlServiceApi, flowFile, reporting, reportingService);
 
         if (!flowFileHandled)
             session.remove(flowFile);
     }
 
     // returns a value of whether the incoming flowfile was processed.
-    private boolean processData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile parentFlowFile){
+    private boolean processData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile parentFlowFile, boolean reporting, IStatsDReportingController reportingController){
         String queryType = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(parentFlowFile).getValue();
         switch (queryType) {
             case "log": {
-                return getLogData(context, session, witsmlServiceApi, parentFlowFile);
+                return getLogData(context, session, witsmlServiceApi, parentFlowFile, reportingController);
             }
             case "trajectory": {
                 return getTrajectoryData(context, session, witsmlServiceApi, parentFlowFile);
@@ -254,7 +279,7 @@ public class GetData extends AbstractProcessor {
         }
     }
 
-    private boolean getLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
+    private boolean getLogData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile, IStatsDReportingController reportingController) {
         String wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
         String wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue().replaceAll("[;\\s\t]", "");
 
@@ -265,31 +290,55 @@ public class GetData extends AbstractProcessor {
         String endDepth = context.getProperty(QUERY_END_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endTime = context.getProperty(QUERY_END_TIME).evaluateAttributeExpressions(flowFile).getValue();
         String timeZone = flowFile.getAttribute("timeZone");
+        String logMax = flowFile.getAttribute("log.max");
+        String logMin = flowFile.getAttribute("log.min");
 
         if (endDepth == null)
             endDepth = "";
 
         // Make the query
+        StopWatch watch = new StopWatch();
+        watch.start();
         ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime, endTime, endDepth, timeZone);
+        watch.stop();
+
+        if (reportingController != null){
+            reportingController.incrementQueryCounter();
+            reportingController.recordWitsmlQueryTime((int)watch.getDuration(TimeUnit.SECONDS));
+        }
+
         if (logs == null){
             session.transfer(flowFile, FAILURE);
             return true;
         }
 
-        String endBatchTime = flowFile.getAttribute("endBatchTime");
-
-        if (logs.getLog().size() == 0){
-            session.transfer(flowFile, FAILURE);
-             return true;
+        try {
+            if (logs.getLog().size() == 0) {
+                session.transfer(flowFile, FAILURE);
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            getLogger().error(ex.getMessage());
+            return true;
         }
 
         ObjLog targetLog = logs.getLog().get(0);
-
 
         String result = "";
 
         // Determine if we have to convert to JSON
         if (context.getProperty(LOG_DATA_FORMAT).getValue().equals("JSON")) {
+            if (logs.getLog().size() == 0){
+                session.remove(flowFile);
+                return true;
+            }
+            if (logs.getLog().get(0).getLogData().size()== 0){
+                session.remove(flowFile);
+                return true;
+            }
+            logs.getLog().get(0).setIndexType(LogIndexType.DATE_TIME);
             List<AbstractDataTrace> process = LogDataHelper.processData(logs);
             ObjectMapper mapper = new ObjectMapper();
 
@@ -301,7 +350,29 @@ public class GetData extends AbstractProcessor {
         }
         else {
             // Get the CSV data
-            result = LogDataHelper.getCSV(logs.getLog().get(0), true);
+            if (targetLog.getLogData().size() == 0){
+                session.remove(flowFile);
+                return true;
+            }
+            if(reportingController != null) {
+                reportingController.recordNumberOfPointsReceived(
+                        targetLog.getLogData().get(0).getData().size() * targetLog.getLogCurveInfo().size());
+                String startRange = getISODate(targetLog.getStartDateTimeIndex(), timeZone);
+                long start = iso8601toMillis(startRange);
+                String endRange = getISODate(targetLog.getEndDateTimeIndex(), timeZone);
+                long end = iso8601toMillis(endRange);
+                reportingController.recordTimeSpanPerQuery((int)((end-start)/1000)/60);
+                if (logMax != null && !logMax.equals("") && logMin != null && !logMin.equals("")){
+                    long max = iso8601toMillis(logMax);
+                    long min = iso8601toMillis(logMin);
+                    long range = max - min;
+                    long current = end - min;
+                    long complete = (current/range)*100;
+                    reportingController.recordPercentToDone((int)complete);
+                    reportingController.recordLastTimeProcessed(end);
+                }
+            }
+            result = LogDataHelper.getCSV(targetLog, true);
         }
 
         // Create the new flowfile
@@ -330,14 +401,26 @@ public class GetData extends AbstractProcessor {
 
         // Determine where to route the data
         logDataFlowfile = session.putAttribute(logDataFlowfile, OBJECT_TYPE_ATTRIBUTE, objectType);
-        if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endBatchTime, timeZone)){
+        String order = logDataFlowfile.getAttribute(BATCH_ORDER);
+        if (order == null) {
+            order = "0";
+        } else{
+            int orderNum = Integer.parseInt(order);
+            orderNum = orderNum + 1;
+            order = Integer.toString(orderNum);
+        }
+        session.putAttribute(logDataFlowfile, BATCH_ORDER, order);
+        if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endTime, timeZone)){
             if (objectType.equals("depth")) {
                 logDataFlowfile = session.putAttribute(logDataFlowfile,
                         NEXT_QUERY_DEPTH_ATTRIBUTE, Double.toString(targetLog.getEndIndex().getValue()));
             }
             else {
-                    logDataFlowfile = session.putAttribute(logDataFlowfile,
-                            NEXT_QUERY_TIME_ATTRIBUTE, getISODate(targetLog.getEndDateTimeIndex(), timeZone));
+
+                String currentTime = getISODate(targetLog.getEndDateTimeIndex(), timeZone);
+                String nextQueryTime = getNextQuery(currentTime);
+                logDataFlowfile = session.putAttribute(logDataFlowfile,
+                        NEXT_QUERY_TIME_ATTRIBUTE, nextQueryTime);
             }
             session.transfer(logDataFlowfile, PARTIAL);
         }
@@ -353,8 +436,8 @@ public class GetData extends AbstractProcessor {
         } else if (requeryIndicator.equals("MAX_INDEX")){
             LogIndexType logType = targetLog.getIndexType();
             if (logType == LogIndexType.DATE_TIME || logType == LogIndexType.ELAPSED_TIME){
-                long logMaxMilli = iso8601toMillis(logResponseMax);
-                long currentLogMax = iso8601toMillis(getISODate(targetLog.getEndDateTimeIndex(), timeZone));
+                long logMaxMilli = iso8601toMillis(endBatchIndex);
+                long currentLogMax = iso8601toMillis(logResponseMax);
                 return (!(logMaxMilli <= currentLogMax));
             } else{
                 return (!logResponseMax.equals(Double.toString(targetLog.getEndIndex().getValue())));
@@ -367,11 +450,17 @@ public class GetData extends AbstractProcessor {
         return false;
     }
 
+    private String convertTimeString(String timeStamp, String timeZone){
+        ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+        ZoneId offset = ZoneId.of(timeZone);
+        ZonedDateTime ldt = zdt.withZoneSameInstant(offset);
+        return ldt.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+    }
 
     private long iso8601toMillis(String input){
-        ZonedDateTime time = ZonedDateTime.parse("2014-11-17T23:59:59.000-0600",
-                DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
-        return time.getSecond()*1000;
+        ZonedDateTime time = ZonedDateTime.parse(input,
+                DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+        return time.toInstant().toEpochMilli();
     }
 
     private boolean getLogCurveInfos(ProcessSession session, ObjLog targetLog, FlowFile flowFile){
@@ -482,7 +571,13 @@ public class GetData extends AbstractProcessor {
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
-        mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
+        mapper.setDateFormat(new SimpleDateFormat(WitsmlConstants.TIMEZONE_FORMAT));
+    }
+
+    private String getNextQuery(String timeStamp){
+        ZonedDateTime currentTime = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+        currentTime = currentTime.plusSeconds(1);
+        return currentTime.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
     }
 
     private String getISODate(XMLGregorianCalendar date, String timeZone){

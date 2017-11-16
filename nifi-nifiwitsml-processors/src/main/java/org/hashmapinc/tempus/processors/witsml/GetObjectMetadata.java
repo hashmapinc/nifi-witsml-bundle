@@ -16,6 +16,7 @@
  */
 package org.hashmapinc.tempus.processors.witsml;
 
+import com.eclipsesource.json.Json;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.Configuration;
@@ -47,8 +48,6 @@ import java.util.*;
 @ReadsAttributes({@ReadsAttribute(attribute="", description="")})
 @WritesAttributes({@WritesAttribute(attribute="", description="")})
 public class GetObjectMetadata extends AbstractProcessor {
-
-    private static ObjectMapper mapper = new ObjectMapper();
 
     public static final PropertyDescriptor WITSML_SERVICE = new PropertyDescriptor
             .Builder().name("WITSML SERVICE")
@@ -93,6 +92,16 @@ public class GetObjectMetadata extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor BATCH_TYPE = new PropertyDescriptor
+            .Builder().name("BATCH TYPE")
+            .displayName("Batch Type")
+            .description("The Object type to get the query for")
+            .required(true)
+            .allowableValues(BatchDuration.values())
+            .defaultValue(BatchDuration.DAY.toString())
+            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .build();
+
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Data successfully received from the server")
@@ -115,6 +124,7 @@ public class GetObjectMetadata extends AbstractProcessor {
         descriptors.add(WELLBORE_ID);
         descriptors.add(OBJECT_ID);
         descriptors.add(OBJECT_TYPE);
+        descriptors.add(BATCH_TYPE);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<Relationship>();
@@ -122,7 +132,6 @@ public class GetObjectMetadata extends AbstractProcessor {
         this.relationships = Collections.unmodifiableSet(relationships);
         relationships.add(FAILURE);
         this.relationships = Collections.unmodifiableSet(relationships);
-        setMapper();
     }
 
     @Override
@@ -142,43 +151,49 @@ public class GetObjectMetadata extends AbstractProcessor {
 
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
-
-        final ComponentLog logger = getLogger();
-        IWitsmlServiceApi witsmlServiceApi;
-
         try {
-            witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
-        } catch (Exception ex) {
-            logger.error(ex.getMessage());
-            return;
+            final ComponentLog logger = getLogger();
+            IWitsmlServiceApi witsmlServiceApi;
+
+            try {
+                witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
+            } catch (Exception ex) {
+                logger.error(ex.getMessage());
+                return;
+            }
+
+            FlowFile flowFile = session.get();
+
+            String objectId;
+            String wellId;
+            String wellboreId;
+            String objectType;
+
+            if (flowFile != null) {
+                objectId = context.getProperty(OBJECT_ID).getValue();
+                wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue();
+                wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue();
+                objectType = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(flowFile).getValue();
+            } else {
+                objectId = context.getProperty(OBJECT_ID).getValue();
+                wellId = context.getProperty(WELL_ID).getValue();
+                wellboreId = context.getProperty(WELLBORE_ID).getValue();
+                objectType = context.getProperty(OBJECT_TYPE).getValue();
+            }
+
+            if (objectType.equals("log")) {
+                handleLog(wellId, wellboreId, objectId, flowFile, session, witsmlServiceApi,
+                        BatchDuration.valueOf(BatchDuration.class, context.getProperty(BATCH_TYPE).getValue()));
+            }
         }
-
-        FlowFile flowFile = session.get();
-
-        String objectId;
-        String wellId;
-        String wellboreId;
-        String objectType;
-
-        if (flowFile != null) {
-            objectId = context.getProperty(OBJECT_ID).getValue();
-            wellId = context.getProperty(WELL_ID).evaluateAttributeExpressions(flowFile).getValue();
-            wellboreId = context.getProperty(WELLBORE_ID).evaluateAttributeExpressions(flowFile).getValue();
-            objectType = context.getProperty(OBJECT_TYPE).evaluateAttributeExpressions(flowFile).getValue();
-        } else {
-            objectId = context.getProperty(OBJECT_ID).getValue();
-            wellId = context.getProperty(WELL_ID).getValue();
-            wellboreId = context.getProperty(WELLBORE_ID).getValue();
-            objectType = context.getProperty(OBJECT_TYPE).getValue();
-        }
-
-        if (objectType.equals("log")){
-            handleLog(wellId, wellboreId, objectId, flowFile, session, witsmlServiceApi);
+        catch (Exception ex)
+        {
+            getLogger().error("bad");
         }
     }
 
     private void handleLog(String wellId, String wellboreId, String logId,
-                           FlowFile flowFile, ProcessSession session, IWitsmlServiceApi witsmlService){
+                           FlowFile flowFile, ProcessSession session, IWitsmlServiceApi witsmlService, BatchDuration duration){
 
         LogMetadataInfo results = witsmlService.getLogMetaData(wellId, wellboreId, logId);
         Object log = Configuration.defaultConfiguration().jsonProvider().parse(results.metadata);
@@ -186,9 +201,11 @@ public class GetObjectMetadata extends AbstractProcessor {
         if (indexType.contains("TIME")) {
             String startTime = JsonPath.read(log, "$.log[0].startDateTimeIndex").toString();
             String endTime = JsonPath.read(log, "$.log[0].endDateTimeIndex").toString();
-            List<BatchInfo> batches = computeTimeBatches(startTime, endTime, BatchDuration.DAY, results.timeZone);
+            String wellName = JsonPath.read(log, "$.log[0].nameWell").toString();
+            List<BatchInfo> batches = computeTimeBatches(startTime, endTime,duration, results.timeZone);
             for (BatchInfo batch : batches){
-                createLogBatchFlowFile(session, wellId, wellboreId, logId, results, indexType, batch);
+                createLogBatchFlowFile(session, wellId, wellboreId, logId, results, indexType, batch, wellName,
+                        endTime, startTime);
             }
         } else {
             session.putAttribute(flowFile, "endIndex", JsonPath.read(log, "$.log[0].endIndex"));
@@ -196,18 +213,22 @@ public class GetObjectMetadata extends AbstractProcessor {
     }
 
     private void createLogBatchFlowFile(ProcessSession session, String wellId, String wellboreID, String logId,
-                                        LogMetadataInfo results, String indexType, BatchInfo info){
+                                        LogMetadataInfo results, String indexType, BatchInfo info, String wellName,
+                                        String endTime, String startTime){
         FlowFile flowFile = session.create();
         session.putAttribute(flowFile, "wellboreUid", wellboreID);
         session.putAttribute(flowFile, "wellUid", wellId);
         session.putAttribute(flowFile, "uid", logId);
         session.putAttribute(flowFile, "indexType", indexType);
         session.putAttribute(flowFile, "next.query.time", convertTimeString(info.startDate, results.timeZone));
-        session.putAttribute(flowFile, "endBatchTime", convertTimeString(info.endDate, results.timeZone));
+        session.putAttribute(flowFile, "last.query.time", convertTimeString(info.endDate, results.timeZone));
         session.putAttribute(flowFile, "objectType", "log");
         session.putAttribute(flowFile, "mime.type", "application/json");
+        session.putAttribute(flowFile, "well.name", wellName);
+        session.putAttribute(flowFile, "log.max", endTime);
+        session.putAttribute(flowFile, "log.min", startTime);
         session.putAttribute(flowFile,"timeZone", results.timeZone);
-        session.putAttribute(flowFile, "batchId", Integer.toString(info.batchId));
+        session.putAttribute(flowFile, "batchId", info.batchId);
         flowFile = session.write(flowFile, out -> out.write(results.metadata.getBytes()));
         session.transfer(flowFile, SUCCESS);
     }
@@ -216,25 +237,41 @@ public class GetObjectMetadata extends AbstractProcessor {
         ZonedDateTime zdt = ZonedDateTime.parse(timeStamp);
         ZoneId offset = ZoneId.of(timeZone);
         ZonedDateTime ldt = zdt.withZoneSameInstant(offset);
-        return ldt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        return ldt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS[XXX]"));
     }
 
     private List<BatchInfo> computeTimeBatches(String startDate, String endDate, BatchDuration duration, String timeZone){
-        ZoneId offset = ZoneId.of(timeZone);
-
-        ZonedDateTime startTime = ZonedDateTime.parse(startDate);
-        ZonedDateTime convertedStartTime = startTime.withZoneSameInstant(offset);
-
-        ZonedDateTime endTime = ZonedDateTime.parse(endDate);
-        ZonedDateTime convertedEndTime = endTime.withZoneSameInstant(offset);
-
-        long dayBatchs = Duration.between(convertedStartTime, convertedEndTime).toDays();
         List<BatchInfo> batches = new ArrayList<>();
-        ZonedDateTime current = convertedStartTime;
-        for (int i = 0; i <= dayBatchs; i++){
-            batches.add(getBatchInfo(current, i, timeZone));
-            current = current.plus(1, ChronoUnit.DAYS);
+        if (duration == BatchDuration.DAY) {
+            ZoneId offset = ZoneId.of(timeZone);
+
+            ZonedDateTime startTime = ZonedDateTime.parse(startDate);
+            ZonedDateTime convertedStartTime = startTime.withZoneSameInstant(offset);
+
+            ZonedDateTime endTime = ZonedDateTime.parse(endDate);
+            ZonedDateTime convertedEndTime = endTime.withZoneSameInstant(offset);
+
+            long dayBatchs = Duration.between(convertedStartTime, convertedEndTime).toDays();
+            ZonedDateTime current = convertedStartTime;
+            for (int i = 0; i <= dayBatchs; i++) {
+                batches.add(getBatchInfo(current, i, timeZone));
+                current = current.plus(1, ChronoUnit.DAYS);
+            }
+        } else {
+            ZoneId offset = ZoneId.of(timeZone);
+
+            ZonedDateTime startTime = ZonedDateTime.parse(startDate);
+            ZonedDateTime convertedStartTime = startTime.withZoneSameInstant(offset);
+
+            ZonedDateTime endTime = ZonedDateTime.parse(endDate);
+            ZonedDateTime convertedEndTime = endTime.withZoneSameInstant(offset);
+            BatchInfo info = new BatchInfo();
+            info.startDate = convertedStartTime.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+            info.endDate = convertedEndTime.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+            info.batchId = "0";
+            batches.add(info);
         }
+
         return batches;
     }
 
@@ -243,13 +280,13 @@ public class GetObjectMetadata extends AbstractProcessor {
         int month = current.getMonthValue();
         int day = current.getDayOfMonth();
         String date = String.format("%04d", year) + "-" + String.format("%02d", month) + "-" +
-                String.format("%02d", day) + "T";
+                String.format("%02d", day);
         String startTime = "00:00:01.000" + timeZone;
         String endTime = "23:59:59.000" + timeZone;
         BatchInfo info = new BatchInfo();
-        info.startDate = date + startTime;
-        info.endDate = date + endTime;
-        info.batchId = id;
+        info.startDate = date + "T" + startTime;
+        info.endDate = date + "T" + endTime;
+        info.batchId = date;
         return info;
     }
 
@@ -257,14 +294,9 @@ public class GetObjectMetadata extends AbstractProcessor {
         return ZonedDateTime.parse(input);
     }
 
-    private void setMapper() {
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
-        mapper.setDateFormat(new SimpleDateFormat(WitsmlConstants.TIMEZONE_FORMAT));
-    }
-
     class BatchInfo{
         String startDate;
         String endDate;
-        int batchId;
+        String batchId;
     }
 }

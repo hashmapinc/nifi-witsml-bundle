@@ -29,7 +29,7 @@ public interface IWitsmlServiceApi extends ControllerService {
     Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker);
     ObjWells getWell(String wellId, String status);
     LogMetadataInfo getLogMetaData(String wellId, String wellboreId, String logId);
-
+    String getUrl();
     com.hashmapinc.tempus.WitsmlObjects.v1311.ObjWells getWell1311(String wellId, String status);
 
     ObjWellbores getWellbore(String wellId, String wellboreId);

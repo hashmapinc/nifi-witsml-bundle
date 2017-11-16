@@ -18,14 +18,10 @@ import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarker;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarkers;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLog;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMessage;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMessages;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLog;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLogs;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReport;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReports;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRig;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRigs;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisk;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisks;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSidewallCore;
@@ -34,17 +30,15 @@ import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyProgram;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyPrograms;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTarget;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTargets;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectory;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectorys;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubular;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubulars;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometry;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometrys;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWell;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbore;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbores;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWells;
 import com.hashmapinc.tempus.witsml.api.*;
+import com.hashmapinc.tempus.witsml.client.Client;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnEnabled;
@@ -55,23 +49,17 @@ import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.reporting.InitializationException;
 
-import com.hashmapinc.tempus.witsml.client.Client;
-
+import javax.xml.bind.JAXBException;
+import javax.xml.transform.TransformerException;
 import java.io.*;
 import java.rmi.RemoteException;
-import java.text.SimpleDateFormat;
-import java.time.*;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
-
-import javax.xml.bind.JAXBException;
-import javax.xml.transform.TransformerConfigurationException;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.stream.StreamSource;
 
 /**
  * Created by Chris on 6/2/17.
@@ -81,11 +69,10 @@ import javax.xml.transform.stream.StreamSource;
 public class Witsml1311Service extends AbstractControllerService implements IWitsmlServiceApi {
 
     // Global session variables used by all processors using an instance
-    private static Client myClient = null;
+    private Client myClient = null;
     private String baseLogQuery = "";
     private String baseLogMetadataQuery = "";
     private String baseTrajQuery = "";
-    private WitsmlVersionTransformer transformer;
 
     //Properties
     public static final PropertyDescriptor ENDPOINT_URL = new PropertyDescriptor
@@ -118,10 +105,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         props.add(USERNAME);
         props.add(PASSWORD);
         properties = Collections.unmodifiableList(props);
-    }
-
-    public Witsml1311Service() throws TransformerConfigurationException {
-        transformer = new WitsmlVersionTransformer();
     }
 
     @Override
@@ -274,6 +257,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         String convertedLogData = "";
 
         try {
+            WitsmlVersionTransformer transformer = new WitsmlVersionTransformer();
             convertedLogData = transformer.convertVersion(returnedLogData);
         } catch (TransformerException e) {
             getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
@@ -296,7 +280,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     private String removeTimeZone(String timeStamp){
-        ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"));
+        ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
         return zdt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
     }
 
@@ -354,6 +338,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         String convertedTrajectoryData = "";
 
         try {
+            WitsmlVersionTransformer transformer = new WitsmlVersionTransformer();
             convertedTrajectoryData = transformer.convertVersion(returnedTrajectoryData);
         } catch (TransformerException e) {
             getLogger().error("Could not convert WITSML 1.3.1.1 response to 1.4.1.1");
@@ -791,7 +776,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
 
         ObjectMapper mapper = new ObjectMapper();
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        mapper.setDateFormat(new SimpleDateFormat(WitsmlConstants.TIMEZONE_FORMAT));
+        mapper.setDateFormat(WitsmlConstants.getSimpleDateTimeFormat(info.timeZone));
         String jsonResult = null;
 
         try {
@@ -802,6 +787,11 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
 
         info.metadata = jsonResult;
         return info;
+    }
+
+    @Override
+    public String getUrl() {
+        return myClient.getUrl();
     }
 
     @Override
@@ -818,7 +808,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     private String getTimeZone(int timeZoneMinutesOffset){
-        String timeZoneIndicator = "";
 
         float hoursOffset = timeZoneMinutesOffset / 60;
 
@@ -827,10 +816,10 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         String hours = ((hoursOffset < 0) ? "-" : "") + String.format("%02d", Math.abs((int)hoursOffset));
 
         if (partialHour == 0){
-            return timeZoneIndicator = hours + ":00";
+            return hours + ":00";
         } else {
             String minutes = String.format("%02f", (60 * partialHour));
-            return timeZoneIndicator = hours + ":" + minutes;
+            return hours + ":" + minutes;
         }
     }
 
