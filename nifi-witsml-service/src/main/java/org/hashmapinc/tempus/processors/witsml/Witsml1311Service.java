@@ -533,7 +533,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjLog log : logs.getLog()) {
                             if (log == null)
                                 continue;
-                            LocalDateTime timeChanged = log.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
+                            LocalDateTime timeChanged = null;
+                            try { timeChanged=log.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();} catch (Exception npe) {}
                             ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log", parentURI, timeChanged));
                         }
                         break;
