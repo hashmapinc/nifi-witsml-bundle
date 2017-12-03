@@ -393,7 +393,7 @@ public class GetData extends AbstractProcessor {
 
         // Set attributes
         String objectType = "depth";
-        if (indexType.toLowerCase().contains("time")){
+        if (indexType != null && indexType.toLowerCase().contains("time")){
             objectType = "date time";
         }
 
@@ -412,8 +412,11 @@ public class GetData extends AbstractProcessor {
         session.putAttribute(logDataFlowfile, BATCH_ORDER, order);
         if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endTime, timeZone)){
             if (objectType.equals("depth")) {
+            	String endIndex=null;
+            	if (targetLog!=null && targetLog.getEndIndex()!=null)
+            		endIndex = Double.toString(targetLog.getEndIndex().getValue());
                 logDataFlowfile = session.putAttribute(logDataFlowfile,
-                        NEXT_QUERY_DEPTH_ATTRIBUTE, Double.toString(targetLog.getEndIndex().getValue()));
+                        NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex);
             }
             else {
 
@@ -581,9 +584,12 @@ public class GetData extends AbstractProcessor {
     }
 
     private String getISODate(XMLGregorianCalendar date, String timeZone){
+    	try {
         return String.format("%04d", date.getYear()) + "-" + String.format("%02d", date.getMonth()) + "-" +
                 String.format("%02d", date.getDay()) + "T" + String.format("%02d", date.getHour()) + ":" +
                 String.format("%02d", date.getMinute()) + ":" + String.format("%02d", date.getSecond()) + "." +
                 String.format("%03d", date.getMillisecond()) + timeZone;
+    	} catch (Exception ex) {}
+    	return "";
     }
 }

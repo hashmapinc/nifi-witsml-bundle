@@ -280,8 +280,13 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     private String removeTimeZone(String timeStamp){
+    	try {
         ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
         return zdt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
+    	} catch (Exception ex) {
+    		System.out.println(timeStamp);
+    	}
+    	return "";
     }
 
     private String getQuery(String resourcePath) throws IOException {
@@ -770,7 +775,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             return null;
         }
         LogMetadataInfo info = new LogMetadataInfo();
-        int zone = (logs.getLog().get(0).getStartDateTimeIndex().getTimezone());
+        int zone = 0;	//Default timezone?
+        try {zone = (logs.getLog().get(0).getStartDateTimeIndex().getTimezone());} catch (Exception ignrEx) {}
 
         getLogger().debug(getTimeZone(zone));
         info.timeZone = getTimeZone(zone);

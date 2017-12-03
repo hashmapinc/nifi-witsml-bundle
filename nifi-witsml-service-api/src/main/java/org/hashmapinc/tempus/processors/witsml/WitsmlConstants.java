@@ -12,7 +12,7 @@ public class WitsmlConstants {
     public static SimpleDateFormat getSimpleDateTimeFormat(String timeZone){
         SimpleDateFormat timeFormat = new SimpleDateFormat();
         timeFormat.applyPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        timeFormat.setTimeZone(TimeZone.getTimeZone(ZoneId.of(timeZone)));
+        try {timeFormat.setTimeZone(TimeZone.getTimeZone(ZoneId.of(timeZone)));} catch (Exception ex) {}
         return timeFormat;
     }
 }
