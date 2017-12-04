@@ -13,14 +13,20 @@ import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.Validator;
+import org.apache.nifi.distributed.cache.client.DistributedMapCacheClient;
+import org.apache.nifi.distributed.cache.client.Serializer;
+import org.apache.nifi.distributed.cache.client.exception.SerializationException;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -30,8 +36,11 @@ import java.util.*;
 @Tags({"WITSML", "LOG", "MUDLOG", "TRAJECTORY"})
 @CapabilityDescription("Get Data from Witsml Server for Objects Log, Mudlog and Trajectory.")
 @SeeAlso({})
-@ReadsAttributes({@ReadsAttribute(attribute="", description="")})
-@WritesAttributes({@WritesAttribute(attribute="", description="")})
+@ReadsAttributes({@ReadsAttribute(attribute="uri", description="The URI of the object to list children of.")})
+@WritesAttributes({@WritesAttribute(attribute="id", description=""),
+        @WritesAttribute(attribute="uri", description="The URI of the object."),
+        @WritesAttribute(attribute="wmlObjectType", description="The WITSML object type that was found")
+})
 public class ListObjects extends AbstractProcessor {
 
     private static ObjectMapper mapper = new ObjectMapper();
@@ -72,6 +81,24 @@ public class ListObjects extends AbstractProcessor {
             .required(false)
             .build();
 
+    public static final PropertyDescriptor DISTRIBUTED_CACHE_SERVICE = new PropertyDescriptor
+            .Builder().name("DISTRIBUTED CACHE SERVICE")
+            .displayName("Distributed Cache Service")
+            .description("Specifies the service to use for the distributed map cache client for known/unknown status.")
+            .addValidator(Validator.VALID)
+            .required(false)
+            .build();
+
+    public static final PropertyDescriptor MAINTAIN_QUERY_STATE = new PropertyDescriptor
+            .Builder().name("MAINTAIN QUERY STATE")
+            .displayName("Maintain Query State")
+            .description("Maintain a list of already known objects.")
+            .allowableValues("true", "false")
+            .defaultValue("false")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .required(true)
+            .build();
+
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Successful Query to Server")
@@ -98,6 +125,8 @@ public class ListObjects extends AbstractProcessor {
         descriptors.add(PARENT_URI);
         descriptors.add(OBJECT_TYPES);
         descriptors.add(WELL_STATUS_FILTER);
+        descriptors.add(DISTRIBUTED_CACHE_SERVICE);
+        descriptors.add(MAINTAIN_QUERY_STATE);
 
         this.descriptors = Collections.unmodifiableList(descriptors);
 
@@ -119,6 +148,8 @@ public class ListObjects extends AbstractProcessor {
         return descriptors;
     }
 
+    private DistributedMapCacheClient cacheClient = null;
+
     @OnScheduled
     public void onScheduled(final ProcessContext context) {
 
@@ -128,12 +159,16 @@ public class ListObjects extends AbstractProcessor {
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
 
         FlowFile inputFile = session.get();
-        FlowFile outputFile;
+        /*FlowFile outputFile;
         if (inputFile == null)
             outputFile = session.create();
         else {
             outputFile = session.create(inputFile);
-        }
+        }*/
+        //if (cacheClient == null)
+            //cacheClient = (DistributedMapCacheClient)context.getProperty(DISTRIBUTED_CACHE_SERVICE).asControllerService();
+
+        //boolean trackObjects = context.getProperty(MAINTAIN_QUERY_STATE).asBoolean();
 
         try {
             final ComponentLog logger = getLogger();
@@ -146,7 +181,7 @@ public class ListObjects extends AbstractProcessor {
                 return;
             }
 
-            session.putAttribute(outputFile, "mime.type", "application/json");
+            //session.putAttribute(outputFile, "mime.type", "application/json");
 
             String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
 
@@ -157,10 +192,37 @@ public class ListObjects extends AbstractProcessor {
                 uri = context.getProperty(PARENT_URI).evaluateAttributeExpressions().getValue();
 
             List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes), context.getProperty(WELL_STATUS_FILTER).getValue());
+            List<FlowFile> outputFiles = new ArrayList<>();
 
-            String data;
+            for (WitsmlObjectId wmlObj : objects) {
+                try {
+                    FlowFile outputFile = session.create();
+                    session.putAttribute(outputFile, "mime.type", "application/json");
+                    session.putAttribute(outputFile, "id", wmlObj.getId());
+                    session.putAttribute(outputFile, "uri", wmlObj.getUri());
+                    session.putAttribute(outputFile, "wmlObjectType", wmlObj.getType());
+                   /* if (trackObjects) {
+                        if (checkIfObjectKnown(wmlObj.getUri()))
+                            session.putAttribute(outputFile, "wlmObjectKnown", "true");
+                        else {
+                            session.putAttribute(outputFile, "wlmObjectKnown", "false");
+                            setObjectKnown(wmlObj.getUri(), wmlObj.getName());
+                        }
+                    }*/
+                    outputFile = session.write(outputFile, out -> out.write(wmlObj.getData().getBytes()));
+                    outputFiles.add(outputFile);
+                } catch (Exception ex) {
+                    getLogger().error("Error processing data for witsml object: " + ex.getMessage());
+                }
+            }
 
-            try {
+            session.transfer(outputFiles, SUCCESS);
+            if (inputFile != null)
+                session.transfer(inputFile, ORIGINAL);
+
+            //String data;
+
+            /*try {
                 if (objects == null) {
                     session.remove(outputFile);
                     if (inputFile != null)
@@ -174,9 +236,11 @@ public class ListObjects extends AbstractProcessor {
                     session.transfer(inputFile, FAILURE);
                 session.remove(outputFile);
                 return;
-            }
+            }*/
 
-            if (data == null || data.equals("")) {
+
+
+            /*if (data == null || data.equals("")) {
                 session.remove(outputFile);
                 if (inputFile != null)
                     session.transfer(inputFile, ORIGINAL);
@@ -204,11 +268,33 @@ public class ListObjects extends AbstractProcessor {
             session.remove(outputFile);
             if (inputFile != null)
                 session.transfer(inputFile, FAILURE);
+        }*/
+        } catch (Exception ex) {
+            getLogger().error("error processing listobject response: " + ex.getMessage());
         }
     }
+
+/*    private final org.apache.nifi.distributed.cache.client.Serializer<String> keySerializer = new StringSerializer();
+
+    private void setObjectKnown(String uri, String name) throws IOException {
+        cacheClient.put(uri, name, keySerializer, keySerializer);
+    }
+
+    private boolean checkIfObjectKnown(String uri) throws IOException {
+        return cacheClient.containsKey(uri, keySerializer);
+    }*/
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
         mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"));
     }
+
+/*    public static class StringSerializer implements Serializer<String> {
+
+        @Override
+        public void serialize(final String value, final OutputStream out) throws SerializationException, IOException {
+            out.write(value.getBytes(StandardCharsets.UTF_8));
+        }
+    }*/
+
 }

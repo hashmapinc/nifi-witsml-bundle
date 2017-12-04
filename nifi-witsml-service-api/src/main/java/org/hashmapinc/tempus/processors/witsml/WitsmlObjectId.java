@@ -10,18 +10,20 @@ public class WitsmlObjectId {
     private String id;
     private String type;
     private String uri;
+    private String objectData;
     private LocalDateTime lastModified;
 
-    public WitsmlObjectId(String name, String id, String type, String parentUri) {
+    public WitsmlObjectId(String name, String id, String type, String parentUri, String objectData) {
         this.name = name;
         this.id = id;
         this.type = type;
         this.uri =  parentUri + "/" + getName() + "(" + getId() + ")";
         this.lastModified = lastModified;
+        this.objectData = objectData;
     }
 
-    public WitsmlObjectId(String name, String id, String type, String parentUri, LocalDateTime lastModified) {
-        this(name, id, type, parentUri);
+    public WitsmlObjectId(String name, String id, String type, String parentUri, LocalDateTime lastModified, String objectData) {
+        this(name, id, type, parentUri, objectData);
         this.lastModified = lastModified;
     }
 
@@ -32,6 +34,8 @@ public class WitsmlObjectId {
     public String getId(){
         return id;
     }
+
+    public String getData() {return objectData;}
 
     public String getType(){
         return type;
