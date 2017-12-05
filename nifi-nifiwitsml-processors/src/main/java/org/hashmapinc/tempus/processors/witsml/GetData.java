@@ -20,8 +20,6 @@ import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.util.StopWatch;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import javax.xml.datatype.XMLGregorianCalendar;
 import java.text.SimpleDateFormat;
@@ -419,13 +417,12 @@ public class GetData extends AbstractProcessor {
             if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endTime, timeZone)){
                 if (objectType.equals("depth")) {
                     String endIndex=null;
-                    if (targetLog!=null && targetLog.getEndIndex()!=null)
+                    if (targetLog.getEndIndex()!=null)
                         endIndex = Double.toString(targetLog.getEndIndex().getValue());
                     flowFile = session.putAttribute(flowFile,
                             NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex);
                 }
                 else {
-
                     String currentTime = getISODate(targetLog.getEndDateTimeIndex(), timeZone);
                     String nextQueryTime = getNextQuery(currentTime);
                     flowFile = session.putAttribute(flowFile,
@@ -498,30 +495,24 @@ public class GetData extends AbstractProcessor {
     }
 
     private boolean isLogGrowing(ObjLog targetLog, String requeryIndicator, String logResponseMax, String endBatchIndex, String timeZone){
-        if (requeryIndicator.equals("OBJECT_GROWING")){
-            return targetLog.isObjectGrowing();
-        } else if (requeryIndicator.equals("MAX_INDEX")){
-            LogIndexType logType = targetLog.getIndexType();
-            if (logType == LogIndexType.DATE_TIME || logType == LogIndexType.ELAPSED_TIME){
+        switch (requeryIndicator) {
+            case "OBJECT_GROWING":
+                return targetLog.isObjectGrowing();
+            case "MAX_INDEX":
+                LogIndexType logType = targetLog.getIndexType();
+                if (logType == LogIndexType.DATE_TIME || logType == LogIndexType.ELAPSED_TIME) {
+                    long logMaxMilli = iso8601toMillis(endBatchIndex);
+                    long currentLogMax = iso8601toMillis(logResponseMax);
+                    return (!(logMaxMilli <= currentLogMax));
+                } else {
+                    return (!logResponseMax.equals(Double.toString(targetLog.getEndIndex().getValue())));
+                }
+            case "BATCH_INDEX":
                 long logMaxMilli = iso8601toMillis(endBatchIndex);
                 long currentLogMax = iso8601toMillis(logResponseMax);
                 return (!(logMaxMilli <= currentLogMax));
-            } else{
-                return (!logResponseMax.equals(Double.toString(targetLog.getEndIndex().getValue())));
-            }
-        } else if(requeryIndicator.equals("BATCH_INDEX")){
-            long logMaxMilli = iso8601toMillis(endBatchIndex);
-            long currentLogMax = iso8601toMillis(logResponseMax);
-            return (!(logMaxMilli <= currentLogMax));
         }
         return false;
-    }
-
-    private String convertTimeString(String timeStamp, String timeZone){
-        ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
-        ZoneId offset = ZoneId.of(timeZone);
-        ZonedDateTime ldt = zdt.withZoneSameInstant(offset);
-        return ldt.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
     }
 
     private long iso8601toMillis(String input){
@@ -584,27 +575,6 @@ public class GetData extends AbstractProcessor {
         return true;
     }
 
-    private String convertLogDataToJson(String logData, String logId) {
-        String[] logDataArray = logData.split("\n");
-        String[] mnemonicsArray = logDataArray[0].split(",");
-
-        JSONArray jsonArray = new JSONArray();
-        String[] values;
-        for (int i = 2; i < logDataArray.length; i++) {
-            values = logDataArray[i].split(",");
-
-            for (int j = 1; j < mnemonicsArray.length; j++) {
-                JSONObject jsonObject = new JSONObject()
-                                        .put("uri", logId+"/"+mnemonicsArray[j])
-                                        .put("value", values[j])
-                                        .put("index", values[0]);
-                jsonArray.put(jsonObject);
-            }
-        }
-        JSONObject jsonObject = new JSONObject()
-                                .put("list", jsonArray);
-        return jsonObject.get("list").toString();
-    }
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);

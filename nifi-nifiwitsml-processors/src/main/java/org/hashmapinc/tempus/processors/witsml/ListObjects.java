@@ -1,7 +1,6 @@
 package org.hashmapinc.tempus.processors.witsml;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
@@ -24,8 +23,6 @@ import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -85,7 +82,7 @@ public class ListObjects extends AbstractProcessor {
             .Builder().name("DISTRIBUTED CACHE SERVICE")
             .displayName("Distributed Cache Service")
             .description("Specifies the service to use for the distributed map cache client for known/unknown status.")
-            .addValidator(Validator.VALID)
+            .identifiesControllerService(DistributedMapCacheClient.class)
             .required(false)
             .build();
 
@@ -159,16 +156,11 @@ public class ListObjects extends AbstractProcessor {
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
 
         FlowFile inputFile = session.get();
-        /*FlowFile outputFile;
-        if (inputFile == null)
-            outputFile = session.create();
-        else {
-            outputFile = session.create(inputFile);
-        }*/
-        //if (cacheClient == null)
-            //cacheClient = (DistributedMapCacheClient)context.getProperty(DISTRIBUTED_CACHE_SERVICE).asControllerService();
 
-        //boolean trackObjects = context.getProperty(MAINTAIN_QUERY_STATE).asBoolean();
+        if (cacheClient == null)
+            cacheClient = (DistributedMapCacheClient)context.getProperty(DISTRIBUTED_CACHE_SERVICE).asControllerService();
+
+        boolean trackObjects = context.getProperty(MAINTAIN_QUERY_STATE).asBoolean();
 
         try {
             final ComponentLog logger = getLogger();
@@ -180,8 +172,6 @@ public class ListObjects extends AbstractProcessor {
                 logger.error(ex.getMessage());
                 return;
             }
-
-            //session.putAttribute(outputFile, "mime.type", "application/json");
 
             String[] objectTypes = context.getProperty(OBJECT_TYPES).toString().replaceAll("[;\\s\t]", "").split(",");
 
@@ -201,14 +191,13 @@ public class ListObjects extends AbstractProcessor {
                     session.putAttribute(outputFile, "id", wmlObj.getId());
                     session.putAttribute(outputFile, "uri", wmlObj.getUri());
                     session.putAttribute(outputFile, "wmlObjectType", wmlObj.getType());
-                   /* if (trackObjects) {
-                        if (checkIfObjectKnown(wmlObj.getUri()))
-                            session.putAttribute(outputFile, "wlmObjectKnown", "true");
-                        else {
-                            session.putAttribute(outputFile, "wlmObjectKnown", "false");
+                    if (trackObjects){
+                        boolean known = checkIfObjectKnown(wmlObj.getUri());
+                        if (!known)
                             setObjectKnown(wmlObj.getUri(), wmlObj.getName());
-                        }
-                    }*/
+                        session.putAttribute(outputFile, "object.known", String.valueOf(known));
+                    }
+
                     outputFile = session.write(outputFile, out -> out.write(wmlObj.getData().getBytes()));
                     outputFiles.add(outputFile);
                 } catch (Exception ex) {
@@ -220,61 +209,12 @@ public class ListObjects extends AbstractProcessor {
             if (inputFile != null)
                 session.transfer(inputFile, ORIGINAL);
 
-            //String data;
-
-            /*try {
-                if (objects == null) {
-                    session.remove(outputFile);
-                    if (inputFile != null)
-                        session.transfer(inputFile, ORIGINAL);
-                    return;
-                }
-                data = mapper.writeValueAsString(objects);
-            } catch (JsonProcessingException e) {
-                getLogger().error("Error converting objects to JSON in ListObject: " + e.getMessage());
-                if (inputFile != null)
-                    session.transfer(inputFile, FAILURE);
-                session.remove(outputFile);
-                return;
-            }*/
-
-
-
-            /*if (data == null || data.equals("")) {
-                session.remove(outputFile);
-                if (inputFile != null)
-                    session.transfer(inputFile, ORIGINAL);
-                return;
-            }
-
-            final String jsonData = data;
-
-            if (jsonData.equals("")) {
-                session.remove(outputFile);
-                if (inputFile != null)
-                    session.transfer(inputFile, ORIGINAL);
-                return;
-            }
-
-            outputFile = session.write(outputFile, out -> out.write(jsonData.getBytes()));
-            session.transfer(outputFile, TRAJECTORY);
-            if (inputFile != null)
-                session.transfer(inputFile, ORIGINAL);
-        } catch (Exception ex){
-            StringWriter sw = new StringWriter();
-            ex.printStackTrace(new PrintWriter(sw));
-            String exceptionAsString = sw.toString();
-            getLogger().error("Error getting objects in ListObjects " + ex.getClass().getName() + System.lineSeparator() + exceptionAsString);
-            session.remove(outputFile);
-            if (inputFile != null)
-                session.transfer(inputFile, FAILURE);
-        }*/
         } catch (Exception ex) {
             getLogger().error("error processing listobject response: " + ex.getMessage());
         }
     }
 
-/*    private final org.apache.nifi.distributed.cache.client.Serializer<String> keySerializer = new StringSerializer();
+    private final org.apache.nifi.distributed.cache.client.Serializer<String> keySerializer = new StringSerializer();
 
     private void setObjectKnown(String uri, String name) throws IOException {
         cacheClient.put(uri, name, keySerializer, keySerializer);
@@ -282,19 +222,18 @@ public class ListObjects extends AbstractProcessor {
 
     private boolean checkIfObjectKnown(String uri) throws IOException {
         return cacheClient.containsKey(uri, keySerializer);
-    }*/
+    }
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
         mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS"));
     }
 
-/*    public static class StringSerializer implements Serializer<String> {
-
+    public static class StringSerializer implements Serializer<String> {
         @Override
         public void serialize(final String value, final OutputStream out) throws SerializationException, IOException {
             out.write(value.getBytes(StandardCharsets.UTF_8));
         }
-    }*/
+    }
 
 }
