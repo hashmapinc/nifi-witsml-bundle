@@ -257,7 +257,7 @@ public class ListObjects extends AbstractProcessor {
             }
 
             outputFile = session.write(outputFile, out -> out.write(jsonData.getBytes()));
-            session.transfer(outputFile, SUCCESS);
+            session.transfer(outputFile, TRAJECTORY);
             if (inputFile != null)
                 session.transfer(inputFile, ORIGINAL);
         } catch (Exception ex){

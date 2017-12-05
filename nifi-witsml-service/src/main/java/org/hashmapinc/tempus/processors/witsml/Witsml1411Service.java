@@ -149,40 +149,13 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker) {
-        logTracker.setVersion(WitsmlVersion.VERSION_1411);
-        logTracker.setLogId(logId);
-        logTracker.initalize(myClient, wellId, wellboreId);
-
-        return logTracker.ExecuteRequest();
-    }
-
-    @Override
     public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone) {
         return null;
     }
 
     @Override
-    public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudLogTracker) {
-        mudLogTracker.setVersion(WitsmlVersion.VERSION_1411);
-        mudLogTracker.setMudlogId(mudLogId);
-        mudLogTracker.initalize(myClient, wellId, wellboreId);
-
-        return mudLogTracker.ExecuteRequest();
-    }
-
-    @Override
     public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, String startDepth) {
         return null;
-    }
-
-    @Override
-    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryid, TrajectoryRequestTracker trajectoryTracker) {
-        trajectoryTracker.setVersion(WitsmlVersion.VERSION_1411);
-        trajectoryTracker.setTrajectoryId(trajectoryid);
-        trajectoryTracker.initalize(myClient, wellId, wellboreId);
-
-        return trajectoryTracker.ExecuteRequest();
     }
 
     @Override
@@ -331,15 +304,6 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
             }
         }
         return ids;
-    }
-
-    @Override
-    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker) {
-        objectTracker.initalize(myClient, wellId, wellboreId);
-        objectTracker.setVersion(WitsmlVersion.VERSION_1411);
-        objectTracker.setObjectId(objectId);
-        objectTracker.setObjectType(objType);
-        return objectTracker.ExecuteRequest();
     }
 
     @Override

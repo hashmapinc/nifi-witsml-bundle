@@ -5,38 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlMarshal;
 import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlVersionTransformer;
-import com.hashmapinc.tempus.WitsmlObjects.v1311.*;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRun;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRuns;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjCementJob;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjCementJobs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjConvCore;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjConvCores;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFluidsReport;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFluidsReports;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarker;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarkers;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLog;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLog;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReport;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReports;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisk;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisks;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSidewallCore;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSidewallCores;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyProgram;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyPrograms;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTarget;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTargets;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectorys;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubular;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubulars;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometry;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometrys;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbores;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWells;
+import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import com.hashmapinc.tempus.witsml.api.*;
 import com.hashmapinc.tempus.witsml.client.Client;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
@@ -202,15 +171,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker) {
-        logTracker.setVersion(WitsmlVersion.VERSION_1311);
-        logTracker.setLogId(logId);
-        logTracker.initalize(myClient, wellId, wellboreId);
-
-        return logTracker.ExecuteRequest();
-    }
-
-    @Override
     public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone){
 
         // Create Query
@@ -298,15 +258,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudLogTracker) {
-        mudLogTracker.setVersion(WitsmlVersion.VERSION_1311);
-        mudLogTracker.setMudlogId(mudLogId);
-        mudLogTracker.initalize(myClient, wellId, wellboreId);
-
-        return mudLogTracker.ExecuteRequest();
-    }
-
-    @Override
     public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, String startDepth) {
         // Create Query
         String query = "";
@@ -361,15 +312,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         }
 
         return returnedTrajectory;
-    }
-
-    @Override
-    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryid, TrajectoryRequestTracker trajectoryTracker) {
-        trajectoryTracker.setVersion(WitsmlVersion.VERSION_1311);
-        trajectoryTracker.setTrajectoryId(trajectoryid);
-        trajectoryTracker.initalize(myClient, wellId, wellboreId);
-
-        return  trajectoryTracker.ExecuteRequest();
     }
 
     @Override
@@ -533,7 +475,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                             ObjectMapper mapper = new ObjectMapper();
                             mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
                             String data = mapper.writeValueAsString(trajectory);
-                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, null));
+                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, data));
                         }
                         break;
                 }
@@ -542,15 +484,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             }
         }
         return ids;
-    }
-
-    @Override
-    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker) {
-        objectTracker.initalize(myClient, wellId, wellboreId);
-        objectTracker.setVersion(WitsmlVersion.VERSION_1311);
-        objectTracker.setObjectId(objectId);
-        objectTracker.setObjectType(objType);
-        return objectTracker.ExecuteRequest();
     }
 
     @Override
