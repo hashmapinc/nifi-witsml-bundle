@@ -88,6 +88,8 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(true)
             .build();
+    
+    
 
     public static final PropertyDescriptor INDEX_TYPE = new PropertyDescriptor
             .Builder().name("INDEX TYPE")
