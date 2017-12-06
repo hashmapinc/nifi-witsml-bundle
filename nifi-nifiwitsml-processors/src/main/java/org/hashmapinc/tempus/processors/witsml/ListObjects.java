@@ -184,6 +184,7 @@ public class ListObjects extends AbstractProcessor {
             List<WitsmlObjectId> objects = witsmlServiceApi.getAvailableObjects(uri, Arrays.asList(objectTypes), context.getProperty(WELL_STATUS_FILTER).getValue());
             List<FlowFile> outputFiles = new ArrayList<>();
 
+
             for (WitsmlObjectId wmlObj : objects) {
                 try {
                     FlowFile outputFile = session.create();
