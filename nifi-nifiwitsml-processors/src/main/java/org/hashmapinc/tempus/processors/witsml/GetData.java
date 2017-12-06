@@ -88,8 +88,7 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(true)
             .build();
-    
-    
+  
 
     public static final PropertyDescriptor INDEX_TYPE = new PropertyDescriptor
             .Builder().name("INDEX TYPE")
@@ -584,30 +583,7 @@ public class GetData extends AbstractProcessor {
         }
         
         session.transfer(trajectoryStationsFlowFiles, TRAJECTORY);
-      
-//        try {
-//            jsonTrajectoryStation = mapper.writeValueAsString(trajectoryStations);
-//        } catch (JsonProcessingException ex) {
-//            getLogger().error("Error in converting TrajectoryStations to Json");
-//        }
-//        
-//        if (!jsonTrajectoryStation.equals("")) {
-//        	
-//            String finalTrajectoryData = jsonTrajectoryStation;
-//            FlowFile trajectoryFlowfile = session.create(flowFile);
-//            if (trajectoryFlowfile == null) {
-//                session.transfer(flowFile, FAILURE);
-//                return true;
-//            }
-//            trajectoryFlowfile = session.write(trajectoryFlowfile, outputStream -> outputStream.write(finalTrajectoryData.getBytes()));
-//            trajectoryFlowfile = session.putAttribute(trajectoryFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
-//            if (targetTrajectory.isObjectGrowing()){
-//                session.transfer(flowFile, REQUERY);
-//            }
-//            session.transfer(trajectoryFlowfile, TRAJECTORY);
-//            
-//            
-//        }
+     
         
         return true;
     }
