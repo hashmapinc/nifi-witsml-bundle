@@ -95,7 +95,7 @@ public class GetData extends AbstractProcessor {
             .description("The index type of the object.")
             .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .required(true)
+            .required(false)
             .build();
 
     public static final PropertyDescriptor QUERY_START_DEPTH = new PropertyDescriptor
@@ -553,25 +553,60 @@ public class GetData extends AbstractProcessor {
         // Create JSON trajectory station array
         String jsonTrajectoryStation = "";
 
-        try {
-            jsonTrajectoryStation = mapper.writeValueAsString(trajectoryStations);
-        } catch (JsonProcessingException ex) {
-            getLogger().error("Error in converting TrajectoryStations to Json");
-        }
-        if (!jsonTrajectoryStation.equals("")) {
-            String finalTrajectoryData = jsonTrajectoryStation;
-            FlowFile trajectoryFlowfile = session.create(flowFile);
-            if (trajectoryFlowfile == null) {
-                session.transfer(flowFile, FAILURE);
-                return true;
-            }
-            trajectoryFlowfile = session.write(trajectoryFlowfile, outputStream -> outputStream.write(finalTrajectoryData.getBytes()));
-            trajectoryFlowfile = session.putAttribute(trajectoryFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
-            if (targetTrajectory.isObjectGrowing()){
+        List<FlowFile> trajectoryStationsFlowFiles = new ArrayList<>();
+      
+        
+      //Splitting trajectory station data.
+        if(trajectoryStations != null){
+        	
+        	for(CsTrajectoryStation trajStation:trajectoryStations){
+        		try{
+        			String jasonTrajStation = mapper.writeValueAsString(trajStation);
+            		FlowFile trajectoryStnFlowfile = session.create(flowFile);
+            		
+            		trajectoryStnFlowfile = session.write(trajectoryStnFlowfile, outputStream -> outputStream.write(jasonTrajStation.getBytes()));
+            		trajectoryStnFlowfile = session.putAttribute(trajectoryStnFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
+            		
+            		trajectoryStationsFlowFiles.add(trajectoryStnFlowfile);
+        		}catch (JsonProcessingException ex) {
+                    getLogger().error("Error in converting TrajectoryStations to Json");
+                }
+        		
+        	}
+        	
+        	if (targetTrajectory.isObjectGrowing()){
                 session.transfer(flowFile, REQUERY);
+            }else{
+            	session.remove(flowFile);
             }
-            session.transfer(trajectoryFlowfile, TRAJECTORY);
         }
+        
+        session.transfer(trajectoryStationsFlowFiles, TRAJECTORY);
+      
+//        try {
+//            jsonTrajectoryStation = mapper.writeValueAsString(trajectoryStations);
+//        } catch (JsonProcessingException ex) {
+//            getLogger().error("Error in converting TrajectoryStations to Json");
+//        }
+//        
+//        if (!jsonTrajectoryStation.equals("")) {
+//        	
+//            String finalTrajectoryData = jsonTrajectoryStation;
+//            FlowFile trajectoryFlowfile = session.create(flowFile);
+//            if (trajectoryFlowfile == null) {
+//                session.transfer(flowFile, FAILURE);
+//                return true;
+//            }
+//            trajectoryFlowfile = session.write(trajectoryFlowfile, outputStream -> outputStream.write(finalTrajectoryData.getBytes()));
+//            trajectoryFlowfile = session.putAttribute(trajectoryFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
+//            if (targetTrajectory.isObjectGrowing()){
+//                session.transfer(flowFile, REQUERY);
+//            }
+//            session.transfer(trajectoryFlowfile, TRAJECTORY);
+//            
+//            
+//        }
+        
         return true;
     }
 
