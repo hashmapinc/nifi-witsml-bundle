@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.ColumnarDataTrace;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
@@ -14,6 +16,7 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.Validator;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
@@ -158,6 +161,15 @@ public class GetData extends AbstractProcessor {
             .required(false)
             .identifiesControllerService(IStatsDReportingController.class)
             .build();
+    
+    public static final PropertyDescriptor TYPE_CONVERSION_FILTER = new PropertyDescriptor
+            .Builder().name("TYPE CONVERSION FILTER")
+            .displayName("Data Type Convert Filter")
+            .description("Converts the type of index field to String by specified length: 10")
+            .expressionLanguageSupported(false)
+            .required(false)
+            .addValidator(Validator.VALID)
+            .build();
 
     public static final Relationship TRAJECTORY = new Relationship.Builder()
             .name("Trajectory")
@@ -210,6 +222,7 @@ public class GetData extends AbstractProcessor {
         descriptors.add(QUERY_END_DEPTH);
         descriptors.add(INDEX_TYPE);
         descriptors.add(REPORTING_SERVICE);
+        descriptors.add(TYPE_CONVERSION_FILTER);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<>();
@@ -301,6 +314,7 @@ public class GetData extends AbstractProcessor {
         String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endDepth = context.getProperty(QUERY_END_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endTime = context.getProperty(QUERY_END_TIME).evaluateAttributeExpressions(flowFile).getValue();
+        String typeConvertFilter = context.getProperty(TYPE_CONVERSION_FILTER).evaluateAttributeExpressions(flowFile).getValue();
         String timeZone = flowFile.getAttribute("timeZone");
         String logMax = flowFile.getAttribute("log.max");
         String logMin = flowFile.getAttribute("log.min");
@@ -378,7 +392,7 @@ public class GetData extends AbstractProcessor {
                 return true;
             }
 
-            List<ColumnarDataTrace> data = LogDataHelper.getColumnarDataPoints(logs, true);
+            List<ColumnarDataTrace> data = LogDataHelper.getColumnarDataPoints(logs, true,typeConvertFilter);
             List<FlowFile> logDataFlowFiles = new ArrayList<>();
             for (ColumnarDataTrace dt : data){
                 FlowFile logDataFlowfile = session.create(flowFile);
@@ -386,6 +400,7 @@ public class GetData extends AbstractProcessor {
                 session.putAttribute(logDataFlowfile, "name", dt.getLogName());
                 session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
                 session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
+                
                 String results = null;
                 try {
                     if (dt.getDataPoints().size() == 0) {

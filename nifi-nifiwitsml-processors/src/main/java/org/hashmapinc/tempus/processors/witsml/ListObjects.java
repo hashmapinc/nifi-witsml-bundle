@@ -95,6 +95,9 @@ public class ListObjects extends AbstractProcessor {
             .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
             .required(true)
             .build();
+    
+    
+   
 
     public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
@@ -124,6 +127,7 @@ public class ListObjects extends AbstractProcessor {
         descriptors.add(WELL_STATUS_FILTER);
         descriptors.add(DISTRIBUTED_CACHE_SERVICE);
         descriptors.add(MAINTAIN_QUERY_STATE);
+        
 
         this.descriptors = Collections.unmodifiableList(descriptors);
 
