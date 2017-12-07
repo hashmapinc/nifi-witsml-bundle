@@ -169,7 +169,8 @@ public class ListObjects extends AbstractProcessor {
             try {
                 witsmlServiceApi = context.getProperty(WITSML_SERVICE).asControllerService(IWitsmlServiceApi.class);
             } catch (Exception ex) {
-                logger.error(ex.getMessage());
+                logger.error("Error getting WITSML Controller Service: " + ex.getMessage());
+                session.remove(inputFile);
                 return;
             }
 
@@ -186,8 +187,8 @@ public class ListObjects extends AbstractProcessor {
 
 
             for (WitsmlObjectId wmlObj : objects) {
+                FlowFile outputFile = session.create();
                 try {
-                    FlowFile outputFile = session.create();
                     session.putAttribute(outputFile, "mime.type", "application/json");
                     session.putAttribute(outputFile, "id", wmlObj.getId());
                     session.putAttribute(outputFile, "uri", wmlObj.getUri());
@@ -203,6 +204,7 @@ public class ListObjects extends AbstractProcessor {
                     outputFiles.add(outputFile);
                 } catch (Exception ex) {
                     getLogger().error("Error processing data for witsml object: " + ex.getMessage());
+                    session.remove(outputFile);
                 }
             }
 
@@ -212,6 +214,7 @@ public class ListObjects extends AbstractProcessor {
 
         } catch (Exception ex) {
             getLogger().error("error processing listobject response: " + ex.getMessage());
+            session.remove(inputFile);
         }
     }
 
