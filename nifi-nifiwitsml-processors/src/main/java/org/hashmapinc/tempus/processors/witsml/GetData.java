@@ -162,13 +162,13 @@ public class GetData extends AbstractProcessor {
             .identifiesControllerService(IStatsDReportingController.class)
             .build();
     
-    public static final PropertyDescriptor TYPE_CONVERSION_FILTER = new PropertyDescriptor
+    public static final PropertyDescriptor LOG_INDEX_TYPE_CONVERT_FILTER = new PropertyDescriptor
             .Builder().name("TYPE CONVERSION FILTER")
-            .displayName("Data Type Convert Filter")
+            .displayName("Log Index Type Filter")
             .description("Converts the type of index field to String by specified length: 10")
             .expressionLanguageSupported(false)
             .required(false)
-            .addValidator(Validator.VALID)
+            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
             .build();
 
     public static final Relationship TRAJECTORY = new Relationship.Builder()
@@ -222,7 +222,7 @@ public class GetData extends AbstractProcessor {
         descriptors.add(QUERY_END_DEPTH);
         descriptors.add(INDEX_TYPE);
         descriptors.add(REPORTING_SERVICE);
-        descriptors.add(TYPE_CONVERSION_FILTER);
+        descriptors.add(LOG_INDEX_TYPE_CONVERT_FILTER);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<>();
@@ -314,7 +314,7 @@ public class GetData extends AbstractProcessor {
         String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endDepth = context.getProperty(QUERY_END_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endTime = context.getProperty(QUERY_END_TIME).evaluateAttributeExpressions(flowFile).getValue();
-        String typeConvertFilter = context.getProperty(TYPE_CONVERSION_FILTER).evaluateAttributeExpressions(flowFile).getValue();
+        String typeConvertFilter = context.getProperty(LOG_INDEX_TYPE_CONVERT_FILTER).evaluateAttributeExpressions(flowFile).getValue();
         String timeZone = flowFile.getAttribute("timeZone");
         String logMax = flowFile.getAttribute("log.max");
         String logMin = flowFile.getAttribute("log.min");
