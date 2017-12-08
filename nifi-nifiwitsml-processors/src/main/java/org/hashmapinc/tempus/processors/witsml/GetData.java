@@ -354,7 +354,7 @@ public class GetData extends AbstractProcessor {
 
         ObjLog targetLog = logs.getLog().get(0);
 
-        String result = "";
+        String result;
 
         if (context.getProperty(LOG_DATA_FORMAT).getValue().equals("CSV")) {
             // Get the CSV data
@@ -381,6 +381,15 @@ public class GetData extends AbstractProcessor {
                 }
             }
             result = LogDataHelper.getCSV(targetLog, true);
+            // Create the new flowfile
+            if (!result.equals("")) {
+                FlowFile logDataFlowfile = session.create(flowFile);
+                logDataFlowfile = session.write(logDataFlowfile, out -> out.write(result.getBytes()));
+                if (isTime)
+                    session.transfer(logDataFlowfile, TIME_INDEXED);
+                else
+                    session.transfer(logDataFlowfile, DEPTH_INDEXED);
+            }
         } else {
             // Get data as columnar json
             if (targetLog.getLogData().size() == 0) {
@@ -405,109 +414,55 @@ public class GetData extends AbstractProcessor {
                 try {
                     if (dt.getDataPoints().size() == 0) {
                         session.remove(logDataFlowfile);
-                        continue;
+                    } else {
+                        results = mapper.writeValueAsString(dt.getDataPoints());
+                        String finalResults = results;
+                        if (finalResults == null)
+                            continue;
+                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
+                        logDataFlowFiles.add(logDataFlowfile);
                     }
-                    results = mapper.writeValueAsString(dt.getDataPoints());
                 } catch (JsonProcessingException e) {
                     getLogger().error("Could not process columnar JSON");
                 }
-                String finalResults = results;
-                if (finalResults == null)
-                    continue;
-                logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
-                logDataFlowFiles.add(logDataFlowfile);
             }
 
             //transfer all the flowfiles to success
-            if (isTime)
-                session.transfer(logDataFlowFiles, TIME_INDEXED);
-            else
-                session.transfer(logDataFlowFiles, DEPTH_INDEXED);
-
-            //return false to signal to caller that the original flowfile still needs to be handled
-            String requeryIndicator = context.getProperty(REQUERY_INDICATOR).getValue();
-            String objectType = "depth";
-            if (isTime){
-                objectType = "date time";
+            if (logDataFlowFiles.size() > 0) {
+                if (isTime)
+                    session.transfer(logDataFlowFiles, TIME_INDEXED);
+                else
+                    session.transfer(logDataFlowFiles, DEPTH_INDEXED);
             }
-            if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endTime, timeZone)){
-                if (objectType.equals("depth")) {
-                    String endIndex=null;
-                    if (targetLog.getEndIndex()!=null)
-                        endIndex = Double.toString(targetLog.getEndIndex().getValue());
-                    flowFile = session.putAttribute(flowFile,
-                            NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex);
-                }
-                else {
-                    String currentTime = getISODate(targetLog.getEndDateTimeIndex(), timeZone);
-                    String nextQueryTime = getNextQuery(currentTime);
-                    flowFile = session.putAttribute(flowFile,
-                            NEXT_QUERY_TIME_ATTRIBUTE, nextQueryTime);
-                }
-                session.transfer(flowFile, REQUERY);
-            }
-            else
-                session.remove(flowFile);
-            return true;
         }
 
-        // Create the new flowfile
-        FlowFile logDataFlowfile = session.create(flowFile);
-
-        if (logDataFlowfile == null) {
-            session.transfer(flowFile, FAILURE);
-            return true;
-        }
-        return false;
-
-      /*  // The final data to write to the flow file
-        final String logDataToWrite = result;
-
-        // Write the flowfile data
-        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(logDataToWrite.getBytes()));
-
-        String indexType = flowFile.getAttribute("indexType");
-
-        // Set attributes
+        // Check for requery
+        //return false to signal to caller that the original flowfile still needs to be handled
+        String requeryIndicator = context.getProperty(REQUERY_INDICATOR).getValue();
         String objectType = "depth";
-        if (indexType != null && indexType.toLowerCase().contains("time")){
+        if (isTime){
             objectType = "date time";
         }
-
-        String requeryIndicator = context.getProperty(REQUERY_INDICATOR).getValue();
-
-        // Determine where to route the data
-        logDataFlowfile = session.putAttribute(logDataFlowfile, OBJECT_TYPE_ATTRIBUTE, objectType);
-        String order = logDataFlowfile.getAttribute(BATCH_ORDER);
-        if (order == null) {
-            order = "0";
-        } else{
-            int orderNum = Integer.parseInt(order);
-            orderNum = orderNum + 1;
-            order = Integer.toString(orderNum);
-        }
-        session.putAttribute(logDataFlowfile, BATCH_ORDER, order);
         if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endTime, timeZone)){
             if (objectType.equals("depth")) {
-            	String endIndex=null;
-            	if (targetLog!=null && targetLog.getEndIndex()!=null)
-            		endIndex = Double.toString(targetLog.getEndIndex().getValue());
-                logDataFlowfile = session.putAttribute(logDataFlowfile,
-                        NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex);
+
+                if (targetLog.getEndIndex()!=null) {
+                    String endIndex = Double.toString(targetLog.getEndIndex().getValue());
+                    flowFile = session.putAttribute(flowFile,
+                            NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex + 1);
+                }
             }
             else {
-
                 String currentTime = getISODate(targetLog.getEndDateTimeIndex(), timeZone);
                 String nextQueryTime = getNextQuery(currentTime);
-                logDataFlowfile = session.putAttribute(logDataFlowfile,
+                flowFile = session.putAttribute(flowFile,
                         NEXT_QUERY_TIME_ATTRIBUTE, nextQueryTime);
             }
-            session.transfer(logDataFlowfile, PARTIAL);
+            session.transfer(flowFile, REQUERY);
         }
         else
-            session.transfer(logDataFlowfile, TRAJECTORY);
-
-        return false;*/
+            session.remove(flowFile);
+        return true;
     }
 
     private boolean isLogGrowing(ObjLog targetLog, String requeryIndicator, String logResponseMax, String endBatchIndex, String timeZone){
