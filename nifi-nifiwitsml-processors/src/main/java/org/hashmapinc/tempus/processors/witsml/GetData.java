@@ -403,28 +403,62 @@ public class GetData extends AbstractProcessor {
 
             List<ColumnarDataTrace> data = LogDataHelper.getColumnarDataPoints(logs, true,typeConvertFilter);
             List<FlowFile> logDataFlowFiles = new ArrayList<>();
-            for (ColumnarDataTrace dt : data){
-                FlowFile logDataFlowfile = session.create(flowFile);
-                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
-                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
-                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
-                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
-                
-                String results = null;
-                try {
-                    if (dt.getDataPoints().size() == 0) {
-                        session.remove(logDataFlowfile);
-                    } else {
-                        results = mapper.writeValueAsString(dt.getDataPoints());
-                        String finalResults = results;
-                        if (finalResults == null)
-                            continue;
-                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
-                        logDataFlowFiles.add(logDataFlowfile);
-                    }
-                } catch (JsonProcessingException e) {
-                    getLogger().error("Could not process columnar JSON");
-                }
+            if (isTime) {
+            	if (getISODate(targetLog.getEndDateTimeIndex(), timeZone).compareToIgnoreCase(startTime)>0) {
+		            for (ColumnarDataTrace dt : data){
+		                FlowFile logDataFlowfile = session.create(flowFile);
+		                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
+		                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
+		                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
+		                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
+		                
+		                String results = null;
+		                try {
+		                    if (dt.getDataPoints().size() == 0) {
+		                        session.remove(logDataFlowfile);
+		                    } else {
+		                        results = mapper.writeValueAsString(dt.getDataPoints());
+		                        String finalResults = results;
+		                        if (finalResults == null)
+		                            continue;
+		                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
+		                        logDataFlowFiles.add(logDataFlowfile);
+		                    }
+		                } catch (JsonProcessingException e) {
+		                    getLogger().error("Could not process columnar JSON");
+		                }
+		            }
+            	}
+            } else {
+                double startDepthValue = 0.0;
+                try {startDepthValue = Double.parseDouble(startDepth);} catch(Exception de) {}
+                double endDepthValue = 1.0;
+                try {endDepthValue = targetLog.getEndIndex().getValue();} catch(Exception de) {}
+	            if (endDepthValue >= startDepthValue) {
+		            for (ColumnarDataTrace dt : data){
+		                FlowFile logDataFlowfile = session.create(flowFile);
+		                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
+		                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
+		                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
+		                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
+		                
+		                String results = null;
+		                try {
+		                    if (dt.getDataPoints().size() == 0) {
+		                        session.remove(logDataFlowfile);
+		                    } else {
+		                        results = mapper.writeValueAsString(dt.getDataPoints());
+		                        String finalResults = results;
+		                        if (finalResults == null)
+		                            continue;
+		                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
+		                        logDataFlowFiles.add(logDataFlowfile);
+		                    }
+		                } catch (JsonProcessingException e) {
+		                    getLogger().error("Could not process columnar JSON");
+		                }
+		            }
+	            }
             }
 
             //transfer all the flowfiles to success
@@ -449,7 +483,7 @@ public class GetData extends AbstractProcessor {
                 if (targetLog.getEndIndex()!=null) {
                     String endIndex = Double.toString(targetLog.getEndIndex().getValue());
                     flowFile = session.putAttribute(flowFile,
-                            NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex + 1);
+                            NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex+1);
                 }
             }
             else {
