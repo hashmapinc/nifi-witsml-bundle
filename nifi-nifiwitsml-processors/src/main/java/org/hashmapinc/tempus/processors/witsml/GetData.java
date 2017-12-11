@@ -393,11 +393,11 @@ public class GetData extends AbstractProcessor {
         } else {
             // Get data as columnar json
             if (targetLog.getLogData().size() == 0) {
-                session.remove(flowFile);
+                session.transfer(flowFile, REQUERY);
                 return true;
             }
             if (logs.getLog().get(0).getLogData().size()== 0){
-                session.remove(flowFile);
+                session.transfer(flowFile, REQUERY);
                 return true;
             }
 
