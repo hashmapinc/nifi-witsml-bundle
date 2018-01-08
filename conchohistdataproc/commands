@@ -1,0 +1,6 @@
+ 
+java -cp hashmapcsvprocessor-0.8.jar com.hashmap.concho.csv.TimeLogDataProcessing /mnt/win/concho_10s_depth/10sec/ /home/x-MRathore/histdata/unzipfiles/ >> 10stimelog.txt &
+
+java -cp hashmapcsvprocessor-0.8.jar com.hashmap.concho.csv.DepthLogDataProcessing /mnt/win/concho_10s_depth/depth/ /home/x-MRathore/histdata/unzipfiles/ >> depthlog.txt &
+
+java -cp hashmapcsvprocessor-0.8.jar com.hashmap.concho.csv.TrajectoryStationProcessing /mnt/win/concho_surveys/ /home/x-MRathore/histdata/unzipfiles/ >> trajstations.txt &
