@@ -5,38 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlMarshal;
 import com.hashmapinc.tempus.WitsmlObjects.Util.WitsmlVersionTransformer;
-import com.hashmapinc.tempus.WitsmlObjects.v1311.*;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRun;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjBhaRuns;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjCementJob;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjCementJobs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjConvCore;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjConvCores;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFluidsReport;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFluidsReports;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarker;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjFormationMarkers;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLog;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLog;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjMudLogs;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReport;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjOpsReports;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisk;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjRisks;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSidewallCore;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSidewallCores;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyProgram;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjSurveyPrograms;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTarget;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTargets;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTrajectorys;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubular;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjTubulars;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometry;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWbGeometrys;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWellbores;
-import com.hashmapinc.tempus.WitsmlObjects.v1411.ObjWells;
+import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
 import com.hashmapinc.tempus.witsml.api.*;
 import com.hashmapinc.tempus.witsml.client.Client;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
@@ -202,15 +171,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, LogRequestTracker logTracker) {
-        logTracker.setVersion(WitsmlVersion.VERSION_1311);
-        logTracker.setLogId(logId);
-        logTracker.initalize(myClient, wellId, wellboreId);
-
-        return logTracker.ExecuteRequest();
-    }
-
-    @Override
     public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone){
 
         // Create Query
@@ -280,8 +240,13 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     private String removeTimeZone(String timeStamp){
+    	try {
         ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
         return zdt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS"));
+    	} catch (Exception ex) {
+    		System.out.println(timeStamp);
+    	}
+    	return "";
     }
 
     private String getQuery(String resourcePath) throws IOException {
@@ -290,15 +255,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                 new InputStreamReader(stream));
         return reader.lines().collect(Collectors.joining(
                 System.getProperty("line.separator")));
-    }
-
-    @Override
-    public ObjMudLogs getMudLogData(String wellId, String wellboreId, String mudLogId, MudlogRequestTracker mudLogTracker) {
-        mudLogTracker.setVersion(WitsmlVersion.VERSION_1311);
-        mudLogTracker.setMudlogId(mudLogId);
-        mudLogTracker.initalize(myClient, wellId, wellboreId);
-
-        return mudLogTracker.ExecuteRequest();
     }
 
     @Override
@@ -359,15 +315,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryid, TrajectoryRequestTracker trajectoryTracker) {
-        trajectoryTracker.setVersion(WitsmlVersion.VERSION_1311);
-        trajectoryTracker.setTrajectoryId(trajectoryid);
-        trajectoryTracker.initalize(myClient, wellId, wellboreId);
-
-        return  trajectoryTracker.ExecuteRequest();
-    }
-
-    @Override
     public List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter){
         QueryTarget target = null;
         try {
@@ -393,7 +340,15 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                     LocalDateTime timeChanged = null;
                     if (w.getCommonData() != null)
                         timeChanged = w.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "", timeChanged);
+                    ObjectMapper mapper = new ObjectMapper();
+                    mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                    String data = null;
+                    try {
+                        data = mapper.writeValueAsString(w);
+                    } catch (JsonProcessingException e) {
+                        getLogger().error("Could not process well metadata");
+                    }
+                    WitsmlObjectId objId = new WitsmlObjectId(w.getName(), w.getUid(), "well", "", timeChanged, data);
 
                     ids.add(objId);
                 }
@@ -412,7 +367,10 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         LocalDateTime timeChanged = null;
                         if (wb.getCommonData() != null)
                             timeChanged = wb.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                        WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")", timeChanged);
+                        ObjectMapper mapper = new ObjectMapper();
+                        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                        String data = mapper.writeValueAsString(wb);
+                        WitsmlObjectId objId = new WitsmlObjectId(wb.getName(), wb.getUid(), "wellbore", "/" + wb.getNameWell() + "(" + wb.getUidWell() + ")", timeChanged, data);
 
                         ids.add(objId);
                     }
@@ -438,92 +396,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         for (String type : types) {
             try {
                 switch (type.toUpperCase()) {
-                    case "BHARUN":
-                        ObjBhaRuns bhaRuns = myClient.getBhaRunsAsObj(wellId, wellboreId);
-                        if (bhaRuns == null) {
-                            continue;
-                        }
-                        for(ObjBhaRun bhaRun: bhaRuns.getBhaRun()) {
-                            if (bhaRun == null)
-                                continue;
-                            LocalDateTime timeChanged = bhaRun.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(bhaRun.getName(), bhaRun.getUid(), "bhaRun", parentURI, timeChanged));
-                        }
-                        break;
-                    case "CEMENTJOB":
-                        ObjCementJobs cementJobs = myClient.getCementJobsAsObj(wellId, wellboreId);
-                        if (cementJobs == null){
-                            continue;
-                        }
-                        for (ObjCementJob cementJob : cementJobs.getCementJob()) {
-                            if (cementJob == null)
-                                continue;
-                            LocalDateTime timeChanged = cementJob.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(cementJob.getName(), cementJob.getUid(), "cementJob", parentURI, timeChanged));
-                        }
-                        break;
-                    case "CONVCORE":
-                        ObjConvCores convCores = myClient.getConvCoresAsObj(wellId, wellboreId);
-                        if (convCores == null){
-                            continue;
-                        }
-                        for (ObjConvCore convCore : convCores.getConvCore()) {
-                            if (convCore == null) {
-                                continue;
-                            }
-
-                            LocalDateTime timeChanged = convCore.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(convCore.getName(), convCore.getUid(), "convCore", parentURI, timeChanged));
-                        }
-                        break;
-                    case "DTSINSTALLEDSYSTEM":
-                        ObjDtsInstalledSystems dtsInstalledSystems = myClient.getDtsInstalledSystemsAsObj(wellId, wellboreId);
-                        if (dtsInstalledSystems == null) {
-                            continue;
-                        }
-                        for (ObjDtsInstalledSystem dtsInstalledSystem : dtsInstalledSystems.getDtsInstalledSystem()) {
-                            if (dtsInstalledSystem == null)
-                                continue;
-                            LocalDateTime timeChanged = dtsInstalledSystem.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(dtsInstalledSystem.getName(), dtsInstalledSystem.getUid(), "dtsInstalledSystem", parentURI, timeChanged));
-                        }
-                        break;
-                    case "DTSMEASUREMENT":
-                        ObjDtsMeasurements dtsMeasurements = myClient.getDtsMeasurementsAsObj(wellId, wellboreId);
-                        if (dtsMeasurements == null) {
-                            continue;
-                        }
-                        for (ObjDtsMeasurement dtsMeasurement : dtsMeasurements.getDtsMeasurement()) {
-                            if (dtsMeasurement == null)
-                                continue;
-                            LocalDateTime timeChanged = dtsMeasurement.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(dtsMeasurement.getName(), dtsMeasurement.getUid(), "dtsMeasurement", parentURI, timeChanged));
-                        }
-                        break;
-                    case "FLUIDREPORT":
-                        ObjFluidsReports fluidsReports = myClient.getFluidsReportsAsObj(wellId, wellboreId);
-                        if (fluidsReports == null){
-                            continue;
-                        }
-                        for (ObjFluidsReport fluidsReport : fluidsReports.getFluidsReport()) {
-                            if (fluidsReport == null)
-                                continue;
-                            LocalDateTime timeChanged = fluidsReport.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(fluidsReport.getName(), fluidsReport.getUid(), "fluidsReport", parentURI, timeChanged));
-                        }
-                        break;
-                    case "FORMATIONMARKER":
-                        ObjFormationMarkers formationMarkers = myClient.getFormationMarkersAsObj(wellId, wellboreId);
-                        if (formationMarkers == null) {
-                            continue;
-                        }
-                        for (ObjFormationMarker formationMarker: formationMarkers.getFormationMarker()) {
-                            if (formationMarker == null)
-                                continue;
-                            LocalDateTime timeChanged = formationMarker.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(formationMarker.getName(), formationMarker.getUid(), "formationMarker", parentURI, timeChanged));
-                        }
-                        break;
                     case "LOG":
                         ObjLogs logs = myClient.getLogMetadataAsObj(wellId, wellboreId);
 
@@ -533,8 +405,12 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (ObjLog log : logs.getLog()) {
                             if (log == null)
                                 continue;
-                            LocalDateTime timeChanged = log.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log", parentURI, timeChanged));
+                            LocalDateTime timeChanged = null;
+                            try { timeChanged=log.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();} catch (Exception npe) {}
+                            ObjectMapper mapper = new ObjectMapper();
+                            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                            String data = mapper.writeValueAsString(log);
+                            ids.add(new WitsmlObjectId(log.getName(), log.getUid(), "log", parentURI, timeChanged, data));
                         }
                         break;
                     case "MESSAGE":
@@ -548,32 +424,10 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                         for (com.hashmapinc.tempus.WitsmlObjects.v1311.ObjMessage message : messages.getMessage()) {
                             if (message == null)
                                 continue;
-                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI, null));
-                        }
-                        break;
-                    case "MUDLOG":
-                        ObjMudLogs mudLogs = myClient.getMudLogsAsObj(wellId, wellboreId);
-                        if (mudLogs == null) {
-                            continue;
-                        }
-                        for (ObjMudLog mudLog: mudLogs.getMudLog()) {
-                            if (mudLog == null)
-                                continue;
-
-                            LocalDateTime timeChanged = mudLog.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(mudLog.getName(), mudLog.getUid(), "mudLog", parentURI, timeChanged));
-                        }
-                        break;
-                    case "OPSREPORT":
-                        ObjOpsReports opsReports = myClient.getOpsReportsAsObj(wellId, wellboreId);
-                        if (opsReports == null) {
-                            continue;
-                        }
-                        for (ObjOpsReport opsReport: opsReports.getOpsReport()) {
-                            if (opsReport == null)
-                                continue;
-                            LocalDateTime timeChanged = opsReport.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(opsReport.getName(), opsReport.getUid(), "opsReport", parentURI, timeChanged));
+                            ObjectMapper mapper = new ObjectMapper();
+                            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                            String data = mapper.writeValueAsString(message);
+                            ids.add(new WitsmlObjectId(message.getName(), message.getUid(), "message", parentURI, null, data));
                         }
                         break;
                     case "RIG":
@@ -595,55 +449,10 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                             if (rig == null)
                                 continue;
                             LocalDateTime timeChanged = rig.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig", parentURI, timeChanged));
-                        }
-                        break;
-                    case "RISK":
-                        ObjRisks risks = myClient.getRisksAsObj(wellId, wellboreId);
-                        if (risks == null) {
-                            continue;
-                        }
-                        for (ObjRisk risk : risks.getRisk()) {
-                            if (risk == null)
-                                continue;
-                            LocalDateTime timeChanged = risk.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(risk.getName(), risk.getUid(), "risk", parentURI, timeChanged));
-                        }
-                        break;
-                    case "SIDEWALLCORE":
-                        ObjSidewallCores sidewallCores = myClient.getSideWallCoresAsObj(wellId, wellboreId);
-                        if (sidewallCores == null) {
-                            continue;
-                        }
-                        for (ObjSidewallCore sidewallCore : sidewallCores.getSidewallCore()) {
-                            if (sidewallCore == null)
-                                continue;
-                            LocalDateTime timeChanged = sidewallCore.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(sidewallCore.getName(), sidewallCore.getUid(), "sidewallCore", parentURI, timeChanged));
-                        }
-                        break;
-                    case "SURVEYPROGRAM":
-                        ObjSurveyPrograms surveyPrograms = myClient.getSurveyProgramsAsObj(wellId, wellboreId);
-                        if (surveyPrograms == null) {
-                            continue;
-                        }
-                        for (ObjSurveyProgram surveyProgram: surveyPrograms.getSurveyProgram()) {
-                            if (surveyProgram == null)
-                                continue;
-                            LocalDateTime timeChanged = surveyProgram.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(surveyProgram.getName(), surveyProgram.getUid(), "surveyProgram", parentURI, timeChanged));
-                        }
-                        break;
-                    case "TARGET":
-                        ObjTargets targets = myClient.getTargetsAsObj(wellId, wellboreId);
-                        if (targets == null) {
-                            continue;
-                        }
-                        for (ObjTarget target : targets.getTarget()) {
-                            if (target == null)
-                                continue;
-                            LocalDateTime timeChanged = target.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(target.getName(), target.getUid(), "target", parentURI,timeChanged));
+                            ObjectMapper mapper = new ObjectMapper();
+                            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                            String data = mapper.writeValueAsString(rig);
+                            ids.add(new WitsmlObjectId(rig.getName(), rig.getUid(), "rig", parentURI, timeChanged, data));
                         }
                         break;
                     case "TRAJECTORY":
@@ -663,47 +472,11 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
                             if (trajectory == null)
                                 continue;
                             //LocalDateTime timeChanged = trajectory.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, null));
+                            ObjectMapper mapper = new ObjectMapper();
+                            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+                            String data = mapper.writeValueAsString(trajectory);
+                            ids.add(new WitsmlObjectId(trajectory.getName(), trajectory.getUid(), "trajectory", parentURI, data));
                         }
-                        break;
-                    case "TUBULAR":
-                        ObjTubulars tubulars = myClient.getTubularsAsObj(wellId, wellboreId);
-                        if (tubulars == null) {
-                            continue;
-                        }
-                        for (ObjTubular tubular: tubulars.getTubular()) {
-                            if (tubular == null)
-                                continue;
-                            LocalDateTime timeChanged = tubular.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(tubular.getName(), tubular.getUid(), "tubular", parentURI, timeChanged));
-                        }
-                        break;
-                    case "WBGEOMETRY":
-                        ObjWbGeometrys wbGeometrys = myClient.getWbGeometrysAsObj(wellId, wellboreId);
-                        if (wbGeometrys == null) {
-                            continue;
-                        }
-                        for (ObjWbGeometry wbGeometry: wbGeometrys.getWbGeometry()) {
-                            if (wbGeometry == null)
-                                continue;
-                            LocalDateTime timeChanged = wbGeometry.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(wbGeometry.getName(), wbGeometry.getUid(), "wbGeometry", parentURI, timeChanged));
-                        }
-                        break;
-                    case "WELLLOG":
-                        ObjWellLogs wellLogs = myClient.getWellLogsAsObj(wellId, wellboreId);
-                        if (wellLogs == null) {
-                            continue;
-                        }
-                        for (ObjWellLog wellLog : wellLogs.getWellLog()) {
-                            if (wellLog == null)
-                                continue;
-                            LocalDateTime timeChanged = wellLog.getCommonData().getDTimLastChange().toGregorianCalendar().toZonedDateTime().toLocalDateTime();
-                            ids.add(new WitsmlObjectId(wellLog.getName(), wellLog.getUid(), "wellLog", parentURI, timeChanged));
-                        }
-                        break;
-                    default:
-                        getLogger().error("The Object : " + type + " is not supported/present");
                         break;
                 }
             } catch (Exception ex) {
@@ -711,15 +484,6 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             }
         }
         return ids;
-    }
-
-    @Override
-    public Object getObjectData(String wellId, String wellboreId, String objType, String objectId, ObjectRequestTracker objectTracker) {
-        objectTracker.initalize(myClient, wellId, wellboreId);
-        objectTracker.setVersion(WitsmlVersion.VERSION_1311);
-        objectTracker.setObjectId(objectId);
-        objectTracker.setObjectType(objType);
-        return objectTracker.ExecuteRequest();
     }
 
     @Override
@@ -769,7 +533,8 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
             return null;
         }
         LogMetadataInfo info = new LogMetadataInfo();
-        int zone = (logs.getLog().get(0).getStartDateTimeIndex().getTimezone());
+        int zone = 0;	//Default timezone?
+        try {zone = (logs.getLog().get(0).getStartDateTimeIndex().getTimezone());} catch (Exception ignrEx) {}
 
         getLogger().debug(getTimeZone(zone));
         info.timeZone = getTimeZone(zone);

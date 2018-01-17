@@ -68,6 +68,6 @@ public class QueryTarget {
         String[] node = nodePath.split("\\(");
         String name = node[0];
         String id = node[1].replace(")", "");
-        return new WitsmlObjectId(name, id, type, "");
+        return new WitsmlObjectId(name, id, type, "", "");
     }
 }

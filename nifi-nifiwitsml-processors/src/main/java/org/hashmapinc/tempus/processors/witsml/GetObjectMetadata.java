@@ -197,6 +197,7 @@ public class GetObjectMetadata extends AbstractProcessor {
 
         LogMetadataInfo results = witsmlService.getLogMetaData(wellId, wellboreId, logId);
         Object log = Configuration.defaultConfiguration().jsonProvider().parse(results.metadata);
+        try {
         String indexType = JsonPath.read(log, "$.log[0].indexType");
         if (indexType.contains("TIME")) {
             String startTime = JsonPath.read(log, "$.log[0].startDateTimeIndex").toString();
@@ -210,6 +211,7 @@ public class GetObjectMetadata extends AbstractProcessor {
         } else {
             session.putAttribute(flowFile, "endIndex", JsonPath.read(log, "$.log[0].endIndex"));
         }
+        } catch (Exception ex) {}
     }
 
     private void createLogBatchFlowFile(ProcessSession session, String wellId, String wellboreID, String logId,

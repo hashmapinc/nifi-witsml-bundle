@@ -7,12 +7,12 @@ import java.time.ZoneId;
 import java.util.TimeZone;
 
 public class WitsmlConstants {
-    public static final String TIMEZONE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSS[XXX]";
+    public static final String TIMEZONE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
     public static SimpleDateFormat getSimpleDateTimeFormat(String timeZone){
         SimpleDateFormat timeFormat = new SimpleDateFormat();
         timeFormat.applyPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        timeFormat.setTimeZone(TimeZone.getTimeZone(ZoneId.of(timeZone)));
+        try {timeFormat.setTimeZone(TimeZone.getTimeZone(ZoneId.of(timeZone)));} catch (Exception ex) {}
         return timeFormat;
     }
 }

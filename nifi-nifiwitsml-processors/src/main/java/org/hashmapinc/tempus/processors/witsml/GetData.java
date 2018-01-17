@@ -3,9 +3,11 @@ package org.hashmapinc.tempus.processors.witsml;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hashmapinc.tempus.WitsmlObjects.Util.log.AbstractDataTrace;
+import com.hashmapinc.tempus.WitsmlObjects.Util.log.ColumnarDataTrace;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.nifi.annotation.behavior.ReadsAttribute;
 import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
@@ -14,14 +16,13 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.Validator;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.util.StopWatch;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import javax.xml.datatype.XMLGregorianCalendar;
 import java.text.SimpleDateFormat;
@@ -90,6 +91,7 @@ public class GetData extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .required(true)
             .build();
+  
 
     public static final PropertyDescriptor INDEX_TYPE = new PropertyDescriptor
             .Builder().name("INDEX TYPE")
@@ -97,7 +99,7 @@ public class GetData extends AbstractProcessor {
             .description("The index type of the object.")
             .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
-            .required(true)
+            .required(false)
             .build();
 
     public static final PropertyDescriptor QUERY_START_DEPTH = new PropertyDescriptor
@@ -135,8 +137,8 @@ public class GetData extends AbstractProcessor {
     public static final PropertyDescriptor LOG_DATA_FORMAT = new PropertyDescriptor
             .Builder().name("LOG DATA FORMAT")
             .displayName("Log Data Format")
-            .description("The format to return log data in, either CSV or JSON")
-            .allowableValues("JSON", "CSV")
+            .description("The format to return log data in, either CSV, or Columnar JSON (will result in one flowfile per mneumonic")
+            .allowableValues("CSV", "JSON")
             .required(true)
             .defaultValue("JSON")
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
@@ -159,21 +161,41 @@ public class GetData extends AbstractProcessor {
             .required(false)
             .identifiesControllerService(IStatsDReportingController.class)
             .build();
-
-    public static final Relationship SUCCESS = new Relationship.Builder()
-            .name("Success")
-            .description("Object Data successfully received from the server")
+    
+    public static final PropertyDescriptor LOG_INDEX_TYPE_CONVERT_FILTER = new PropertyDescriptor
+            .Builder().name("TYPE CONVERSION FILTER")
+            .displayName("Log Index Type Filter")
+            .description("Converts the type of index field to String by specified length: 10")
+            .expressionLanguageSupported(false)
+            .required(false)
+            .addValidator(StandardValidators.POSITIVE_INTEGER_VALIDATOR)
             .build();
 
-    public static final Relationship PARTIAL = new Relationship.Builder()
-            .name("Partial")
-            .description("The growing object data has not full been received yet and should be routed back for a re-query.")
+    public static final Relationship TRAJECTORY = new Relationship.Builder()
+            .name("Trajectory")
+            .description("Trajectory Data successfully received from the server")
             .build();
 
     public static final Relationship FAILURE = new Relationship.Builder()
             .name("Failure")
             .description("Object Data not successfully received from the server")
             .build();
+
+    public static final Relationship REQUERY = new Relationship.Builder()
+            .name("Requery")
+            .description("Data needs to be queried again, because the object is still growing.")
+            .build();
+
+    public static final Relationship TIME_INDEXED = new Relationship.Builder()
+            .name("Time Indexed")
+            .description("Time Indexed Log Data")
+            .build();
+
+    public static final Relationship DEPTH_INDEXED = new Relationship.Builder()
+            .name("Depth Indexed")
+            .description("Depth Indexed Log Data")
+            .build();
+
 
     public static final String OBJECT_TYPE_ATTRIBUTE = "object.type";
     public static final String NEXT_QUERY_DEPTH_ATTRIBUTE = "next.query.depth";
@@ -200,12 +222,15 @@ public class GetData extends AbstractProcessor {
         descriptors.add(QUERY_END_DEPTH);
         descriptors.add(INDEX_TYPE);
         descriptors.add(REPORTING_SERVICE);
+        descriptors.add(LOG_INDEX_TYPE_CONVERT_FILTER);
         this.descriptors = Collections.unmodifiableList(descriptors);
 
         final Set<Relationship> relationships = new HashSet<>();
-        relationships.add(SUCCESS);
+        relationships.add(TRAJECTORY);
         relationships.add(FAILURE);
-        relationships.add(PARTIAL);
+        relationships.add(REQUERY);
+        relationships.add(TIME_INDEXED);
+        relationships.add(DEPTH_INDEXED);
         this.relationships = Collections.unmodifiableSet(relationships);
         setMapper();
     }
@@ -289,6 +314,7 @@ public class GetData extends AbstractProcessor {
         String startDepth = context.getProperty(QUERY_START_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endDepth = context.getProperty(QUERY_END_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endTime = context.getProperty(QUERY_END_TIME).evaluateAttributeExpressions(flowFile).getValue();
+        String typeConvertFilter = context.getProperty(LOG_INDEX_TYPE_CONVERT_FILTER).evaluateAttributeExpressions(flowFile).getValue();
         String timeZone = flowFile.getAttribute("timeZone");
         String logMax = flowFile.getAttribute("log.max");
         String logMin = flowFile.getAttribute("log.min");
@@ -324,31 +350,13 @@ public class GetData extends AbstractProcessor {
             return true;
         }
 
+        boolean isTime = logs.getLog().get(0).getIndexType().value().toLowerCase().contains("time");
+
         ObjLog targetLog = logs.getLog().get(0);
 
-        String result = "";
+        String result;
 
-        // Determine if we have to convert to JSON
-        if (context.getProperty(LOG_DATA_FORMAT).getValue().equals("JSON")) {
-            if (logs.getLog().size() == 0){
-                session.remove(flowFile);
-                return true;
-            }
-            if (logs.getLog().get(0).getLogData().size()== 0){
-                session.remove(flowFile);
-                return true;
-            }
-            logs.getLog().get(0).setIndexType(LogIndexType.DATE_TIME);
-            List<AbstractDataTrace> process = LogDataHelper.processData(logs);
-            ObjectMapper mapper = new ObjectMapper();
-
-            try {
-                result = mapper.writeValueAsString(process);
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
-            }
-        }
-        else {
+        if (context.getProperty(LOG_DATA_FORMAT).getValue().equals("CSV")) {
             // Get the CSV data
             if (targetLog.getLogData().size() == 0){
                 session.remove(flowFile);
@@ -373,122 +381,149 @@ public class GetData extends AbstractProcessor {
                 }
             }
             result = LogDataHelper.getCSV(targetLog, true);
+            // Create the new flowfile
+            if (!result.equals("")) {
+                FlowFile logDataFlowfile = session.create(flowFile);
+                logDataFlowfile = session.write(logDataFlowfile, out -> out.write(result.getBytes()));
+                if (isTime)
+                    session.transfer(logDataFlowfile, TIME_INDEXED);
+                else
+                    session.transfer(logDataFlowfile, DEPTH_INDEXED);
+            }
+        } else {
+            // Get data as columnar json
+            if (targetLog.getLogData().size() == 0) {
+                session.transfer(flowFile, REQUERY);
+                return true;
+            }
+            if (logs.getLog().get(0).getLogData().size()== 0){
+                session.transfer(flowFile, REQUERY);
+                return true;
+            }
+
+            List<ColumnarDataTrace> data = LogDataHelper.getColumnarDataPoints(logs, true,typeConvertFilter);
+            List<FlowFile> logDataFlowFiles = new ArrayList<>();
+            if (isTime) {
+            	if (getISODate(targetLog.getEndDateTimeIndex(), timeZone).compareToIgnoreCase(startTime)>0) {
+		            for (ColumnarDataTrace dt : data){
+		                FlowFile logDataFlowfile = session.create(flowFile);
+		                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
+		                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
+		                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
+		                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
+		                
+		                String results = null;
+		                try {
+		                    if (dt.getDataPoints().size() == 0) {
+		                        session.remove(logDataFlowfile);
+		                    } else {
+		                        results = mapper.writeValueAsString(dt.getDataPoints());
+		                        String finalResults = results;
+		                        if (finalResults == null)
+		                            continue;
+		                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
+		                        logDataFlowFiles.add(logDataFlowfile);
+		                    }
+		                } catch (JsonProcessingException e) {
+		                    getLogger().error("Could not process columnar JSON");
+		                }
+		            }
+            	}
+            } else {
+                double startDepthValue = 0.0;
+                try {startDepthValue = Double.parseDouble(startDepth);} catch(Exception de) {}
+                double endDepthValue = 1.0;
+                try {endDepthValue = targetLog.getEndIndex().getValue();} catch(Exception de) {}
+	            if (endDepthValue >= startDepthValue) {
+		            for (ColumnarDataTrace dt : data){
+		                FlowFile logDataFlowfile = session.create(flowFile);
+		                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
+		                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
+		                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
+		                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
+		                
+		                String results = null;
+		                try {
+		                    if (dt.getDataPoints().size() == 0) {
+		                        session.remove(logDataFlowfile);
+		                    } else {
+		                        results = mapper.writeValueAsString(dt.getDataPoints());
+		                        String finalResults = results;
+		                        if (finalResults == null)
+		                            continue;
+		                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
+		                        logDataFlowFiles.add(logDataFlowfile);
+		                    }
+		                } catch (JsonProcessingException e) {
+		                    getLogger().error("Could not process columnar JSON");
+		                }
+		            }
+	            }
+            }
+
+            //transfer all the flowfiles to success
+            if (logDataFlowFiles.size() > 0) {
+                if (isTime)
+                    session.transfer(logDataFlowFiles, TIME_INDEXED);
+                else
+                    session.transfer(logDataFlowFiles, DEPTH_INDEXED);
+            }
         }
 
-        // Create the new flowfile
-        FlowFile logDataFlowfile = session.create(flowFile);
-
-        if (logDataFlowfile == null) {
-            session.transfer(flowFile, FAILURE);
-            return true;
-        }
-
-        // The final data to write to the flow file
-        final String logDataToWrite = result;
-
-        // Write the flowfile data
-        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(logDataToWrite.getBytes()));
-
-        String indexType = flowFile.getAttribute("indexType");
-
-        // Set attributes
+        // Check for requery
+        //return false to signal to caller that the original flowfile still needs to be handled
+        String requeryIndicator = context.getProperty(REQUERY_INDICATOR).getValue();
         String objectType = "depth";
-        if (indexType.toLowerCase().contains("time")){
+        if (isTime){
             objectType = "date time";
         }
-
-        String requeryIndicator = context.getProperty(REQUERY_INDICATOR).getValue();
-
-        // Determine where to route the data
-        logDataFlowfile = session.putAttribute(logDataFlowfile, OBJECT_TYPE_ATTRIBUTE, objectType);
-        String order = logDataFlowfile.getAttribute(BATCH_ORDER);
-        if (order == null) {
-            order = "0";
-        } else{
-            int orderNum = Integer.parseInt(order);
-            orderNum = orderNum + 1;
-            order = Integer.toString(orderNum);
-        }
-        session.putAttribute(logDataFlowfile, BATCH_ORDER, order);
         if (isLogGrowing(targetLog, requeryIndicator, getISODate(logs.getLog().get(0).getEndDateTimeIndex(), timeZone), endTime, timeZone)){
             if (objectType.equals("depth")) {
-                logDataFlowfile = session.putAttribute(logDataFlowfile,
-                        NEXT_QUERY_DEPTH_ATTRIBUTE, Double.toString(targetLog.getEndIndex().getValue()));
+
+                if (targetLog.getEndIndex()!=null) {
+                    String endIndex = Double.toString(targetLog.getEndIndex().getValue());
+                    flowFile = session.putAttribute(flowFile,
+                            NEXT_QUERY_DEPTH_ATTRIBUTE, endIndex+1);
+                }
             }
             else {
-
                 String currentTime = getISODate(targetLog.getEndDateTimeIndex(), timeZone);
                 String nextQueryTime = getNextQuery(currentTime);
-                logDataFlowfile = session.putAttribute(logDataFlowfile,
+                flowFile = session.putAttribute(flowFile,
                         NEXT_QUERY_TIME_ATTRIBUTE, nextQueryTime);
             }
-            session.transfer(logDataFlowfile, PARTIAL);
+            session.transfer(flowFile, REQUERY);
         }
         else
-            session.transfer(logDataFlowfile, SUCCESS);
-
-        return false;
+            session.remove(flowFile);
+        return true;
     }
 
     private boolean isLogGrowing(ObjLog targetLog, String requeryIndicator, String logResponseMax, String endBatchIndex, String timeZone){
-        if (requeryIndicator.equals("OBJECT_GROWING")){
-            return targetLog.isObjectGrowing();
-        } else if (requeryIndicator.equals("MAX_INDEX")){
-            LogIndexType logType = targetLog.getIndexType();
-            if (logType == LogIndexType.DATE_TIME || logType == LogIndexType.ELAPSED_TIME){
+        switch (requeryIndicator) {
+            case "OBJECT_GROWING":
+                return targetLog.isObjectGrowing();
+            case "MAX_INDEX":
+                LogIndexType logType = targetLog.getIndexType();
+                if (logType == LogIndexType.DATE_TIME || logType == LogIndexType.ELAPSED_TIME) {
+                    long logMaxMilli = iso8601toMillis(endBatchIndex);
+                    long currentLogMax = iso8601toMillis(logResponseMax);
+                    return (!(logMaxMilli <= currentLogMax));
+                } else {
+                    return (!logResponseMax.equals(Double.toString(targetLog.getEndIndex().getValue())));
+                }
+            case "BATCH_INDEX":
                 long logMaxMilli = iso8601toMillis(endBatchIndex);
                 long currentLogMax = iso8601toMillis(logResponseMax);
                 return (!(logMaxMilli <= currentLogMax));
-            } else{
-                return (!logResponseMax.equals(Double.toString(targetLog.getEndIndex().getValue())));
-            }
-        } else if(requeryIndicator.equals("BATCH_INDEX")){
-            long logMaxMilli = iso8601toMillis(endBatchIndex);
-            long currentLogMax = iso8601toMillis(logResponseMax);
-            return (!(logMaxMilli <= currentLogMax));
         }
         return false;
-    }
-
-    private String convertTimeString(String timeStamp, String timeZone){
-        ZonedDateTime zdt = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
-        ZoneId offset = ZoneId.of(timeZone);
-        ZonedDateTime ldt = zdt.withZoneSameInstant(offset);
-        return ldt.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
     }
 
     private long iso8601toMillis(String input){
         ZonedDateTime time = ZonedDateTime.parse(input,
                 DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
         return time.toInstant().toEpochMilli();
-    }
-
-    private boolean getLogCurveInfos(ProcessSession session, ObjLog targetLog, FlowFile flowFile){
-        List<CsLogCurveInfo> logCurveInfos = targetLog.getLogCurveInfo();
-
-        String jsonLogCurveInfo = "";
-
-        if (!logCurveInfos.isEmpty()) {
-            try {
-                jsonLogCurveInfo = mapper.writeValueAsString(logCurveInfos);
-            } catch (JsonProcessingException ex) {
-                getLogger().error("Error in converting LogCurveInfo to JSON :" + ex.getMessage());
-                session.transfer(flowFile, FAILURE);
-                return true;
-            }
-        }
-        if (!jsonLogCurveInfo.equals("")) {
-            String finalData = jsonLogCurveInfo;
-            FlowFile logCurveInfoFlowfile = session.create(flowFile);
-            if (logCurveInfoFlowfile == null) {
-                session.transfer(flowFile, FAILURE);
-                return true;
-            }
-            logCurveInfoFlowfile = session.write(logCurveInfoFlowfile, out -> out.write(finalData.getBytes()));
-            logCurveInfoFlowfile = session.putAttribute(logCurveInfoFlowfile, OBJECT_TYPE_ATTRIBUTE, "log curve info");
-            session.transfer(logCurveInfoFlowfile, SUCCESS);
-        }
-        return false;
     }
 
     private boolean getTrajectoryData(ProcessContext context, ProcessSession session, IWitsmlServiceApi witsmlServiceApi, FlowFile flowFile) {
@@ -523,51 +558,40 @@ public class GetData extends AbstractProcessor {
         // Create JSON trajectory station array
         String jsonTrajectoryStation = "";
 
-        try {
-            jsonTrajectoryStation = mapper.writeValueAsString(trajectoryStations);
-        } catch (JsonProcessingException ex) {
-            getLogger().error("Error in converting TrajectoryStations to Json");
+        List<FlowFile> trajectoryStationsFlowFiles = new ArrayList<>();
+      
+        
+      //Splitting trajectory station data.
+        if(trajectoryStations != null){
+        	
+        	for(CsTrajectoryStation trajStation:trajectoryStations){
+        		try{
+        			String jasonTrajStation = mapper.writeValueAsString(trajStation);
+            		FlowFile trajectoryStnFlowfile = session.create(flowFile);
+            		
+            		trajectoryStnFlowfile = session.write(trajectoryStnFlowfile, outputStream -> outputStream.write(jasonTrajStation.getBytes()));
+            		trajectoryStnFlowfile = session.putAttribute(trajectoryStnFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
+            		
+            		trajectoryStationsFlowFiles.add(trajectoryStnFlowfile);
+        		}catch (JsonProcessingException ex) {
+                    getLogger().error("Error in converting TrajectoryStations to Json");
+                }
+        		
+        	}
+        	
+        	if (targetTrajectory.isObjectGrowing()){
+                session.transfer(flowFile, REQUERY);
+            }else{
+            	session.remove(flowFile);
+            }
         }
-        if (!jsonTrajectoryStation.equals("")) {
-            String finalTrajectoryData = jsonTrajectoryStation;
-            FlowFile trajectoryFlowfile = session.create(flowFile);
-            if (trajectoryFlowfile == null) {
-                session.transfer(flowFile, FAILURE);
-                return true;
-            }
-            trajectoryFlowfile = session.write(trajectoryFlowfile, outputStream -> outputStream.write(finalTrajectoryData.getBytes()));
-            trajectoryFlowfile = session.putAttribute(trajectoryFlowfile, OBJECT_TYPE_ATTRIBUTE, "trajectory");
-            if (targetTrajectory.isObjectGrowing()){
-                session.transfer(trajectoryFlowfile, PARTIAL);
-            }
-            else {
-                session.transfer(trajectoryFlowfile, SUCCESS);
-            }
-        }
-        return false;
+        
+        session.transfer(trajectoryStationsFlowFiles, TRAJECTORY);
+     
+        
+        return true;
     }
 
-    private String convertLogDataToJson(String logData, String logId) {
-        String[] logDataArray = logData.split("\n");
-        String[] mnemonicsArray = logDataArray[0].split(",");
-
-        JSONArray jsonArray = new JSONArray();
-        String[] values;
-        for (int i = 2; i < logDataArray.length; i++) {
-            values = logDataArray[i].split(",");
-
-            for (int j = 1; j < mnemonicsArray.length; j++) {
-                JSONObject jsonObject = new JSONObject()
-                                        .put("uri", logId+"/"+mnemonicsArray[j])
-                                        .put("value", values[j])
-                                        .put("index", values[0]);
-                jsonArray.put(jsonObject);
-            }
-        }
-        JSONObject jsonObject = new JSONObject()
-                                .put("list", jsonArray);
-        return jsonObject.get("list").toString();
-    }
 
     private void setMapper() {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_ABSENT);
@@ -575,15 +599,15 @@ public class GetData extends AbstractProcessor {
     }
 
     private String getNextQuery(String timeStamp){
-        ZonedDateTime currentTime = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
+        ZonedDateTime currentTime = ZonedDateTime.parse(timeStamp, DateTimeFormatter.ISO_DATE_TIME);
         currentTime = currentTime.plusSeconds(1);
         return currentTime.format(DateTimeFormatter.ofPattern(WitsmlConstants.TIMEZONE_FORMAT));
     }
 
     private String getISODate(XMLGregorianCalendar date, String timeZone){
-        return String.format("%04d", date.getYear()) + "-" + String.format("%02d", date.getMonth()) + "-" +
-                String.format("%02d", date.getDay()) + "T" + String.format("%02d", date.getHour()) + ":" +
-                String.format("%02d", date.getMinute()) + ":" + String.format("%02d", date.getSecond()) + "." +
-                String.format("%03d", date.getMillisecond()) + timeZone;
+    	try {
+            return date.toString();
+    	} catch (Exception ex) {}
+    	return "";
     }
 }

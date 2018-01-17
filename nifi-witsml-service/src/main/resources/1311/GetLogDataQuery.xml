@@ -5,6 +5,7 @@
         <nameWellbore />
         <name />
         <objectGrowing />
+        <indexType />
         <startIndex uom="">%startIndex%</startIndex>
         <endIndex uom="">%endIndex%</endIndex>
         <startDateTimeIndex>%startDateTimeIndex%</startDateTimeIndex>

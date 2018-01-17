@@ -24,6 +24,7 @@
 
     <properties>
         <witsml.client.version>1.0.17</witsml.client.version>
+        <witsml.objects.version>1.0.13</witsml.objects.version>
     </properties>
 
     <groupId>org.hashmapinc.tempus</groupId>
