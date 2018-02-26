@@ -625,10 +625,12 @@ public class GetData extends AbstractProcessor {
         String[] fields = rfl.toArray(new String[rfl.size()]);
         ObjectNode json = mapper.createObjectNode();
         for (int i=0; i<mnemonics.length; i++) {
-            if (fields[i]==null || fields[i].isEmpty())
-                json.put(mnemonics[i], "");
-            else
+            if (fields[i]==null || fields[i].isEmpty()) {
+                //Don't publish the field
+                //json.put(mnemonics[i], "");
+            } else {
                 json.put(mnemonics[i], fields[i]);
+            }
         }
         return mapper.writeValueAsString(json);
     }
