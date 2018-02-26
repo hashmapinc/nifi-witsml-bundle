@@ -394,11 +394,11 @@ public class GetData extends AbstractProcessor {
             }
         } else {
             // Get data as columnar json
-            if (targetLog.getLogData().size() == 0) {
-                session.transfer(flowFile, REQUERY);
-                return true;
-            }
-            if (logs.getLog().get(0).getLogData().size()== 0){
+            if (targetLog.getLogData().size() == 0 && targetLog.isObjectGrowing()) {
+
+                flowFile = session.putAttribute(flowFile,
+                        FLOWFILE_PRIORITY, "3");
+
                 session.transfer(flowFile, REQUERY);
                 return true;
             }
@@ -484,6 +484,18 @@ public class GetData extends AbstractProcessor {
                 flowFile = session.putAttribute(flowFile,
                         NEXT_QUERY_TIME_ATTRIBUTE, nextQueryTime);
             }
+
+            if(!noTimeDataRequery){
+
+                flowFile = session.putAttribute(flowFile,
+                        FLOWFILE_PRIORITY, "2");
+            }
+
+            else{
+                flowFile = session.putAttribute(flowFile,
+                        FLOWFILE_PRIORITY, "3");
+            }
+
             session.transfer(flowFile, REQUERY);
         }
         else
