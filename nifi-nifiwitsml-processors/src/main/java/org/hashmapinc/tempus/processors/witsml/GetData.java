@@ -3,6 +3,7 @@ package org.hashmapinc.tempus.processors.witsml;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.ColumnarDataTrace;
 import com.hashmapinc.tempus.WitsmlObjects.Util.log.LogDataHelper;
 import com.hashmapinc.tempus.WitsmlObjects.v1411.*;
@@ -384,7 +385,8 @@ public class GetData extends AbstractProcessor {
             // Create the new flowfile
             if (!result.equals("")) {
                 FlowFile logDataFlowfile = session.create(flowFile);
-                logDataFlowfile = session.write(logDataFlowfile, out -> out.write(result.getBytes()));
+                String finalResult = result;
+                logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResult.getBytes()));
                 if (isTime)
                     session.transfer(logDataFlowfile, TIME_INDEXED);
                 else
@@ -405,29 +407,23 @@ public class GetData extends AbstractProcessor {
             List<FlowFile> logDataFlowFiles = new ArrayList<>();
             if (isTime) {
             	if (getISODate(targetLog.getEndDateTimeIndex(), timeZone).compareToIgnoreCase(startTime)>0) {
-		            for (ColumnarDataTrace dt : data){
-		                FlowFile logDataFlowfile = session.create(flowFile);
-		                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
-		                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
-		                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
-		                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
-		                
-		                String results = null;
-		                try {
-		                    if (dt.getDataPoints().size() == 0) {
-		                        session.remove(logDataFlowfile);
-		                    } else {
-		                        results = mapper.writeValueAsString(dt.getDataPoints());
-		                        String finalResults = results;
-		                        if (finalResults == null)
-		                            continue;
-		                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
-		                        logDataFlowFiles.add(logDataFlowfile);
-		                    }
-		                } catch (JsonProcessingException e) {
-		                    getLogger().error("Could not process columnar JSON");
-		                }
-		            }
+                    String[] mnemonics = targetLog.getLogData().get(0).getMnemonicList().split(",");
+                    List<String> rows = targetLog.getLogData().get(0).getData();
+                    for (String row : rows) {
+                        if (row==null || row.isEmpty())
+                            continue;
+                        try {
+                            result = getStringizedJson(mnemonics, row);
+                            if (result == null)
+                                continue;
+                            String finalResult = result;
+                            FlowFile logDataFlowfile = session.create(flowFile);
+                            logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResult.getBytes()));
+                            logDataFlowFiles.add(logDataFlowfile);
+                        } catch (JsonProcessingException e) {
+                            getLogger().error("Could not process row: "+row);
+                        }
+                    }
             	}
             } else {
                 double startDepthValue = 0.0;
@@ -435,38 +431,34 @@ public class GetData extends AbstractProcessor {
                 double endDepthValue = 1.0;
                 try {endDepthValue = targetLog.getEndIndex().getValue();} catch(Exception de) {}
 	            if (endDepthValue >= startDepthValue) {
-		            for (ColumnarDataTrace dt : data){
-		                FlowFile logDataFlowfile = session.create(flowFile);
-		                session.putAttribute(logDataFlowfile, "id", dt.getLogUid());
-		                session.putAttribute(logDataFlowfile, "name", dt.getLogName());
-		                session.putAttribute(logDataFlowfile, "mnemonic", dt.getMnemonic());
-		                session.putAttribute(logDataFlowfile, "uom", dt.getUnitOfMeasure());
-		                
-		                String results = null;
-		                try {
-		                    if (dt.getDataPoints().size() == 0) {
-		                        session.remove(logDataFlowfile);
-		                    } else {
-		                        results = mapper.writeValueAsString(dt.getDataPoints());
-		                        String finalResults = results;
-		                        if (finalResults == null)
-		                            continue;
-		                        logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResults.getBytes()));
-		                        logDataFlowFiles.add(logDataFlowfile);
-		                    }
-		                } catch (JsonProcessingException e) {
-		                    getLogger().error("Could not process columnar JSON");
-		                }
-		            }
+                    String[] mnemonics = targetLog.getLogData().get(0).getMnemonicList().split(",");
+                    List<String> rows = targetLog.getLogData().get(0).getData();
+                    for (String row : rows) {
+                        if (row==null || row.isEmpty())
+                            continue;
+                        try {
+                            result = getStringizedJson(mnemonics, row);
+                            if (result == null)
+                                continue;
+                            String finalResult = result;
+                            FlowFile logDataFlowfile = session.create(flowFile);
+                            logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResult.getBytes()));
+                            logDataFlowFiles.add(logDataFlowfile);
+                        } catch (JsonProcessingException e) {
+                            getLogger().error("Could not process row: "+row);
+                        }
+                    }
 	            }
             }
 
             //transfer all the flowfiles to success
             if (logDataFlowFiles.size() > 0) {
-                if (isTime)
+                if (isTime) {
                     session.transfer(logDataFlowFiles, TIME_INDEXED);
-                else
+                }
+                else {
                     session.transfer(logDataFlowFiles, DEPTH_INDEXED);
+                }
             }
         }
 
@@ -609,5 +601,52 @@ public class GetData extends AbstractProcessor {
             return date.toString();
     	} catch (Exception ex) {}
     	return "";
+    }
+
+    private String getStringizedJson(String[] mnemonics, String row) throws JsonProcessingException {
+        row = row.trim();
+        String[] rowFields=row.split(",");
+        List<String> rfl = new ArrayList<>();
+        int k=0;
+        for (int i=0; i<rowFields.length; i++) {
+            if (i<k) continue;
+            if (rowFields[i].trim().startsWith("\"") && !rowFields[i].trim().endsWith("\"")) {
+                k = getIndexPositionOfEndingQuote(rowFields, i+1);
+                rfl.add(consolidate(rowFields, i, k++));
+            } else {
+                rfl.add(rowFields[k++]);
+            }
+        }
+        int shortFall = mnemonics.length-rfl.size();
+        for (int i=0; i<shortFall; i++) {
+            rfl.add("");
+        }
+
+        String[] fields = rfl.toArray(new String[rfl.size()]);
+        ObjectNode json = mapper.createObjectNode();
+        for (int i=0; i<mnemonics.length; i++) {
+            if (fields[i]==null || fields[i].isEmpty())
+                json.put(mnemonics[i], "");
+            else
+                json.put(mnemonics[i], fields[i]);
+        }
+        return mapper.writeValueAsString(json);
+    }
+
+    private String consolidate(String[] rowFields, int startPosition, int endPosition) {
+        StringBuilder sb=new StringBuilder();
+        for (int i=startPosition; i<=endPosition; i++) {
+            sb.append(rowFields[i]);
+        }
+        return sb.toString();
+    }
+
+    private int getIndexPositionOfEndingQuote(String[] rowFields, int position) {
+        int i=0;
+        for (i=position; i<rowFields.length; i++) {
+            if (rowFields[i].trim().endsWith("\""))
+                break;
+        }
+        return i;
     }
 }
