@@ -202,6 +202,7 @@ public class GetData extends AbstractProcessor {
     public static final String NEXT_QUERY_DEPTH_ATTRIBUTE = "next.query.depth";
     public static final String NEXT_QUERY_TIME_ATTRIBUTE = "next.query.time";
     public static final String BATCH_ORDER = "batch.order";
+    public static final String FLOWFILE_PRIORITY = "priority";
 
     private List<PropertyDescriptor> descriptors;
 
@@ -352,6 +353,7 @@ public class GetData extends AbstractProcessor {
         }
 
         boolean isTime = logs.getLog().get(0).getIndexType().value().toLowerCase().contains("time");
+        boolean noTimeDataRequery = false;
 
         ObjLog targetLog = logs.getLog().get(0);
 
