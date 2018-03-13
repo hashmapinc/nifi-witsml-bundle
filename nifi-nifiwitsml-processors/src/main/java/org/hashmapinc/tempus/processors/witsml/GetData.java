@@ -327,6 +327,8 @@ public class GetData extends AbstractProcessor {
         // Make the query
         StopWatch watch = new StopWatch();
         watch.start();
+
+
         ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime, endTime, endDepth, timeZone);
         watch.stop();
 
@@ -335,6 +337,8 @@ public class GetData extends AbstractProcessor {
             reportingController.recordWitsmlQueryTime((int)watch.getDuration(TimeUnit.SECONDS));
         }
 
+
+
         if (logs == null){
             session.transfer(flowFile, FAILURE);
             return true;
@@ -342,6 +346,8 @@ public class GetData extends AbstractProcessor {
 
         try {
             if (logs.getLog().size() == 0) {
+
+                getLogger().error("logs.getLog().size() "+logs.getLog().size());
                 session.transfer(flowFile, FAILURE);
                 return true;
             }
@@ -408,6 +414,7 @@ public class GetData extends AbstractProcessor {
             List<ColumnarDataTrace> data = LogDataHelper.getColumnarDataPoints(logs, true,typeConvertFilter);
             List<FlowFile> logDataFlowFiles = new ArrayList<>();
             if (isTime) {
+
             	if (getISODate(targetLog.getEndDateTimeIndex(), timeZone).compareToIgnoreCase(startTime)>0) {
                     String[] mnemonics = targetLog.getLogData().get(0).getMnemonicList().split(",");
                     List<String> rows = targetLog.getLogData().get(0).getData();

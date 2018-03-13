@@ -195,7 +195,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         query = query.replace("%uidWellbore%", wellboreId);
         query = query.replace("%uidLog%", logId);
         query = query.replace("%startIndex%", startDepth);
-        query = query.replace("%startDateTimeIndex%", removeTimeZone(startTime));
+        query = query.replace("%startDateTimeIndex%", startTime);
         query = query.replace("%endDateTimeIndex%", removeTimeZone(endTime));
         query = query.replace("%endIndex%", endDepth);
 
