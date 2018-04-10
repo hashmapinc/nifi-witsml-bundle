@@ -171,7 +171,7 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone){
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone, List<String> mnemonicList){
 
         // Create Query
         String query = "";
@@ -199,6 +199,24 @@ public class Witsml1311Service extends AbstractControllerService implements IWit
         query = query.replace("%endDateTimeIndex%", removeTimeZone(endTime));
         query = query.replace("%endIndex%", endDepth);
 
+        StringBuilder logcurveInfo = new StringBuilder("");
+        try {
+            if (mnemonicList.size() == 0) {
+                String logCurveInfoQuery = getQuery("/1311/LogCurveInfo.xml");
+                logCurveInfoQuery = logCurveInfoQuery.replace("%mnemonic%","");
+                logcurveInfo.append(logCurveInfoQuery);
+            } else {
+                for (String mnemonic : mnemonicList) {
+                    String logCurveInfoQuery = getQuery("/1311/LogCurveInfo.xml");
+                    logCurveInfoQuery = logCurveInfoQuery.replace("%mnemonic%", mnemonic);
+                    logcurveInfo.append(logCurveInfoQuery);
+                }
+            }
+        } catch (IOException e) {
+            getLogger().error("Error reading base log query from /1311/LogCurveInfo.xml: in GetData" + e.getMessage());
+        }
+
+        query = query.replace("%logCurveInfo%", logcurveInfo.toString());
         // Execute query to the server
         String returnedLogData = "";
         try {

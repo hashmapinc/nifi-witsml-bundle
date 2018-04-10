@@ -10,22 +10,7 @@
         <endIndex uom="">%endIndex%</endIndex>
         <startDateTimeIndex>%startDateTimeIndex%</startDateTimeIndex>
         <endDateTimeIndex>%endDateTimeIndex%</endDateTimeIndex>
-        <logCurveInfo uid="">
-            <mnemonic />
-            <classWitsml />
-            <unit />
-            <mnemAlias />
-            <nullValue />
-            <minIndex uom="" />
-            <maxIndex uom="" />
-            <minDateTimeIndex />
-            <maxDateTimeIndex />
-            <columnIndex />
-            <curveDescription />
-            <sensorOffset uom="" />
-            <traceState />
-            <typeLogData />
-        </logCurveInfo>
+        %logCurveInfo%
         <logData>
             <data />
         </logData>
