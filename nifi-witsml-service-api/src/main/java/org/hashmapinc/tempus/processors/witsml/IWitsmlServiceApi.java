@@ -20,7 +20,7 @@ import java.util.List;
 @CapabilityDescription("Provides client API for working with WITSML servers")
 public interface IWitsmlServiceApi extends ControllerService {
     Object getObject(String wellId, String wellboreId, String object);
-    ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone);
+    ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone, List<String> mnemonicList);
     ObjTrajectorys getTrajectoryData(String wellId, String wellboreId, String trajectoryId, String startDepth);
     List<WitsmlObjectId> getAvailableObjects(String uri, List<String> objectTypes, String wellFilter);
     ObjWells getWell(String wellId, String status);

@@ -1,0 +1,16 @@
+<logCurveInfo uid="">
+    <mnemonic>%mnemonic%</mnemonic>>
+    <classWitsml />
+    <unit />
+    <mnemAlias />
+    <nullValue />
+    <minIndex uom="" />
+    <maxIndex uom="" />
+    <minDateTimeIndex />
+    <maxDateTimeIndex />
+    <columnIndex />
+    <curveDescription />
+    <sensorOffset uom="" />
+    <traceState />
+    <typeLogData />
+</logCurveInfo>

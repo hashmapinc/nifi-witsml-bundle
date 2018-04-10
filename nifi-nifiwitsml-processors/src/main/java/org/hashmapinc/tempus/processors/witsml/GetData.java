@@ -317,9 +317,14 @@ public class GetData extends AbstractProcessor {
         String endDepth = context.getProperty(QUERY_END_DEPTH).evaluateAttributeExpressions(flowFile).getValue();
         String endTime = context.getProperty(QUERY_END_TIME).evaluateAttributeExpressions(flowFile).getValue();
         String typeConvertFilter = context.getProperty(LOG_INDEX_TYPE_CONVERT_FILTER).evaluateAttributeExpressions(flowFile).getValue();
+        String mnemonicsStr = flowFile.getAttribute("mnemonics");
         String timeZone = flowFile.getAttribute("timeZone");
         String logMax = flowFile.getAttribute("log.max");
         String logMin = flowFile.getAttribute("log.min");
+        List<String> mnemonicList = new ArrayList<>();
+        if (mnemonicsStr != null) {
+         mnemonicList = Arrays.asList(mnemonicsStr.split(","));
+        }
 
         if (endDepth == null)
             endDepth = "";
@@ -329,7 +334,7 @@ public class GetData extends AbstractProcessor {
         watch.start();
 
 
-        ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime, endTime, endDepth, timeZone);
+        ObjLogs logs = witsmlServiceApi.getLogData(wellId, wellboreId, logId, startDepth, startTime, endTime, endDepth, timeZone, mnemonicList);
         watch.stop();
 
         if (reportingController != null){
@@ -360,6 +365,10 @@ public class GetData extends AbstractProcessor {
 
         boolean isTime = logs.getLog().get(0).getIndexType().value().toLowerCase().contains("time");
         boolean noTimeDataRequery = false;
+
+        String logName = logs.getLog().get(0).getName();
+        session.putAttribute(flowFile, "name", logName);
+        session.putAttribute(flowFile, "wmlObjectType", "log");
 
         ObjLog targetLog = logs.getLog().get(0);
 
@@ -395,6 +404,8 @@ public class GetData extends AbstractProcessor {
                 FlowFile logDataFlowfile = session.create(flowFile);
                 String finalResult = result;
                 logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResult.getBytes()));
+                session.putAttribute(logDataFlowfile, "name", logName);
+                session.putAttribute(logDataFlowfile, "wmlObjectType", "log");
                 if (isTime)
                     session.transfer(logDataFlowfile, TIME_INDEXED);
                 else
@@ -428,6 +439,8 @@ public class GetData extends AbstractProcessor {
                             String finalResult = result;
                             FlowFile logDataFlowfile = session.create(flowFile);
                             logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResult.getBytes()));
+                            session.putAttribute(logDataFlowfile, "name", logName);
+                            session.putAttribute(logDataFlowfile, "wmlObjectType", "log");
                             logDataFlowFiles.add(logDataFlowfile);
                         } catch (JsonProcessingException e) {
                             getLogger().error("Could not process row: "+row);
@@ -452,6 +465,8 @@ public class GetData extends AbstractProcessor {
                             String finalResult = result;
                             FlowFile logDataFlowfile = session.create(flowFile);
                             logDataFlowfile = session.write(logDataFlowfile, out -> out.write(finalResult.getBytes()));
+                            session.putAttribute(logDataFlowfile, "name", logName);
+                            session.putAttribute(logDataFlowfile, "wmlObjectType", "log");
                             logDataFlowFiles.add(logDataFlowfile);
                         } catch (JsonProcessingException e) {
                             getLogger().error("Could not process row: "+row);

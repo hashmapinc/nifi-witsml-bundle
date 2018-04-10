@@ -149,7 +149,7 @@ public class Witsml1411Service extends AbstractControllerService implements IWit
     }
 
     @Override
-    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone) {
+    public ObjLogs getLogData(String wellId, String wellboreId, String logId, String startDepth, String startTime, String endTime, String endDepth, String timeZone, List<String> mnemonicList) {
         return null;
     }
 
